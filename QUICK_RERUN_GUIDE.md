@@ -57,7 +57,7 @@ tail -f logs/nanochat_speedrun_*.out
 | 11:30 | SFT done | ✅ Task performance improved |
 | 11:35 | Report generated | ✅ DONE! |
 
-**Total:** ~12 hours (14 hour limit provides buffer)
+**Total:** ~10-12 hours (12 hour limit is max allowed by QOS)
 
 ---
 
@@ -90,6 +90,6 @@ python -m scripts.chat_cli
 ## Files Modified
 - `scripts/download_data.sh` → Added SmolTalk & tokenizers
 - `scripts/tok_eval.py` → Handle offline mode
-- `scripts/speedrun.slurm` → 14 hour time limit
+- `scripts/speedrun.slurm` → 12 hour time limit (QOS maximum)
 
 See `TRAINING_FIXES_APPLIED.md` for details.

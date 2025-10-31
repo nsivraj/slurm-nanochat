@@ -62,15 +62,17 @@ ds = load_dataset("HuggingFaceTB/smol-smoltalk", split=split)  # Tried to downlo
 
 **Fix Applied:**
 ```bash
-#SBATCH --time=14:00:00  # Increased from 8:00:00
+#SBATCH --time=12:00:00  # Increased from 8:00:00 (max allowed by class-cse8990 QOS)
 ```
+
+**Note:** Initially tried 14 hours but discovered `class-cse8990` QOS has a maximum of 12 hours.
 
 **Result:** Now allows for:
 - Base pretraining: ~7 hours
-- Midtraining: ~2 hours
-- SFT: ~2 hours
-- Overhead/evaluation: ~3 hours
-- **Total:** ~14 hours with buffer
+- Midtraining: ~2-3 hours
+- SFT: ~1-2 hours
+- Overhead/evaluation: ~30 minutes
+- **Total:** ~10-12 hours (tight but should complete)
 
 ---
 
@@ -103,9 +105,10 @@ python -c "from datasets import load_dataset; load_dataset('HuggingFaceTB/smol-s
 
 ### 3. `scripts/speedrun.slurm`
 **Changes:**
-- Increased time limit from 8 hours to 14 hours (line 10)
+- Increased time limit from 8 hours to 12 hours (line 10)
+- **Note:** 12 hours is the maximum allowed by `class-cse8990` QOS policy
 
-**Result:** Sufficient time for complete pipeline.
+**Result:** Maximum available time for complete pipeline (tight but should work).
 
 ### 4. `tasks/smoltalk.py`
 **No changes needed!**
