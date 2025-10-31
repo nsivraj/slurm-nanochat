@@ -119,13 +119,15 @@ See [SCRATCH_STORAGE_VERIFICATION.md](SCRATCH_STORAGE_VERIFICATION.md) for detai
 
 ## Next Steps
 
-### For First-Time Setup (on ptolemy-devel-1)
+### For First-Time Setup (on ptolemy-devel-1 or ptolemy-devel-2)
 
-**IMPORTANT:** Steps 1-6 must be done on `ptolemy-devel-1` (which has internet access)
+**IMPORTANT:** Steps 1-6 must be done on a devel server (which has internet access)
 
 1. **SSH to Ptolemy development server:**
    ```bash
    ssh [your_username]@ptolemy-devel-1.arc.msstate.edu
+   # OR
+   ssh [your_username]@ptolemy-devel-2.arc.msstate.edu
    ```
 
 2. **Navigate to nanochat directory:**
@@ -140,7 +142,7 @@ See [SCRATCH_STORAGE_VERIFICATION.md](SCRATCH_STORAGE_VERIFICATION.md) for detai
    # Change: email=your_email@msstate.edu
    ```
 
-4. **Run setup script:**
+4. **Run setup script (loads Python 3.12, creates venv):**
    ```bash
    bash scripts/setup_environment.sh
    ```
@@ -148,8 +150,10 @@ See [SCRATCH_STORAGE_VERIFICATION.md](SCRATCH_STORAGE_VERIFICATION.md) for detai
 5. **Install dependencies:**
    ```bash
    pip install uv
-   uv sync --extra gpu
+   pip install -e '.[gpu]'
    ```
+
+   **Note:** `pip install -e '.[gpu]'` installs nanochat with ALL dependencies (torch, requests, tqdm, etc.)
 
 6. **⭐ CRITICAL: Download all training data:**
    ```bash
@@ -228,11 +232,12 @@ See [SCRATCH_STORAGE_VERIFICATION.md](SCRATCH_STORAGE_VERIFICATION.md) for detai
 - `scripts/speedrun.slurm` ← NEW (modified to check for downloaded data)
 - `scripts/test_gpu.py` ← NEW
 - `.env.local.example` ← NEW
-- `PTOLEMY_SETUP.md` ← NEW
-- `ASSIGNMENT_README.md` ← NEW
-- `SETUP_COMPLETE.md` ← NEW
+- `PTOLEMY_SETUP.md` ← NEW (main setup guide)
+- `ASSIGNMENT_README.md` ← NEW (assignment-specific guide)
+- `SETUP_COMPLETE.md` ← NEW (this file - setup summary)
 - `IMPORTANT_PTOLEMY_NOTES.md` ← NEW (internet access limitations)
 - `SCRATCH_STORAGE_VERIFICATION.md` ← NEW (storage configuration)
+- `TROUBLESHOOTING.md` ← NEW (common issues and solutions)
 
 ### Unchanged Files (Original nanochat)
 - All files in `nanochat/` directory

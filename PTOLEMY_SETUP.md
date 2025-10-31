@@ -15,7 +15,7 @@ This guide explains how to set up and run nanochat on the Ptolemy HPC cluster at
 ```bash
 # On Ptolemy
 cd /scratch/ptolemy/users/$USER
-git clone https://github.com/karpathy/nanochat.git
+git clone git@github.com:nsivraj/slurm-nanochat.git
 cd nanochat
 ```
 
@@ -31,28 +31,35 @@ nano .env.local
 
 Change `email=your_email@msstate.edu` to your actual email.
 
-### 3. Set Up Environment (on ptolemy-devel-1)
+### 3. Set Up Environment (on ptolemy-devel-1 or ptolemy-devel-2)
 
-**IMPORTANT:** Run these steps on `ptolemy-devel-1` server (which has internet access):
+**IMPORTANT:** Run these steps on a devel server (which has internet access):
 
 ```bash
-# SSH to development server
+# SSH to development server (either devel-1 or devel-2)
 ssh [your_username]@ptolemy-devel-1.arc.msstate.edu
+# OR
+ssh [your_username]@ptolemy-devel-2.arc.msstate.edu
 
 # Navigate to nanochat directory
 cd /scratch/ptolemy/users/$USER/slurm-nanochat
 
-# Run setup script
+# Run setup script (loads Python 3.12, creates venv in /scratch)
 bash scripts/setup_environment.sh
 
 # Install uv package manager
 pip install uv
 
-# Install dependencies (this works properly on devel-1)
-uv sync --extra gpu
+# Install nanochat and ALL dependencies (REQUIRED)
+pip install -e '.[gpu]'
 ```
 
-### 4. Download Training Data (on ptolemy-devel-1)
+**Important notes:**
+- nanochat requires Python 3.10+. The setup script loads Python 3.12.5 automatically
+- `pip install -e '.[gpu]'` installs nanochat in editable mode with all GPU dependencies
+- This includes: torch, requests, tqdm, numpy, and all other required packages
+
+### 4. Download Training Data (on ptolemy-devel-1 or ptolemy-devel-2)
 
 **CRITICAL:** GPU compute nodes do NOT have internet access. All data must be downloaded BEFORE submitting the SLURM job.
 
@@ -65,6 +72,7 @@ bash scripts/download_data.sh
 ```
 
 This script will:
+
 - Download 240 dataset shards (~24GB)
 - Build and train the BPE tokenizer
 - Download evaluation bundle (~162MB)
@@ -122,6 +130,7 @@ The speedrun configuration requests:
 ### Data Download Phase (on ptolemy-devel-1, ~30-60 min)
 
 Run `scripts/download_data.sh` which:
+
 - Downloads 240 dataset shards (~24GB)
 - Builds rustbpe tokenizer
 - Trains BPE tokenizer on 2B characters
@@ -133,20 +142,24 @@ Run `scripts/download_data.sh` which:
 The SLURM script (`speedrun.slurm`) runs:
 
 1. **Tokenizer Evaluation** (~5 min)
+
    - Evaluates compression ratio on test data
 
 2. **Base Model Pretraining** (~2-3 hours)
+
    - Trains d20 model (561M parameters)
    - Trains on ~11.2B tokens
    - Evaluates CORE score
 
 3. **Midtraining** (~30-45 min)
+
    - Teaches conversation format
    - Uses pre-downloaded identity conversations
    - Adds special tokens and tool use
    - Evaluates chat capabilities
 
 4. **Supervised Finetuning** (~30-45 min)
+
    - Domain adaptation
    - Improves task performance
    - Final evaluation
@@ -252,6 +265,7 @@ cat logs/nanochat_speedrun_JOBID.err
 ```
 
 Common issues:
+
 - Email not configured in `.env.local`
 - Virtual environment not created
 - Dependencies not installed
@@ -333,6 +347,7 @@ This setup is designed to fulfill the "Analytical Deconstruction" requirement of
 > This exercise will prepare you for the next assignment, where you will design and train your own LLM.
 
 After training completes, you'll have:
+
 - A working ChatGPT-style model trained from scratch
 - Performance metrics and evaluation results
 - Hands-on experience with the complete LLM pipeline

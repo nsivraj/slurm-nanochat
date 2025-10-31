@@ -7,8 +7,9 @@ echo "nanochat - Environment Setup for Ptolemy HPC"
 echo "=================================================="
 
 # Load required modules
-echo "Loading CUDA modules..."
+echo "Loading Python and CUDA modules..."
 module purge
+module load python/3.12.5
 module load cuda-toolkit
 module load spack-managed-x86-64_v3/v1.0
 
@@ -71,13 +72,18 @@ python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}'); 
 echo -e "\n=================================================="
 echo "Environment setup complete!"
 echo ""
-echo "Next steps:"
-echo "1. Install dependencies:"
-echo "   ssh to ptolemy-devel-1.arc.msstate.edu"
-echo "   source scripts/setup_environment.sh"
-echo "   pip install uv"
-echo "   uv sync --extra gpu"
+echo "NEXT STEPS (on ptolemy-devel-1 or ptolemy-devel-2):"
 echo ""
-echo "2. Submit SLURM job:"
-echo "   sbatch --mail-user=your_email@msstate.edu scripts/speedrun.slurm"
+echo "1. Install dependencies:"
+echo "   pip install uv"
+echo "   pip install -e '.[gpu]'"
+echo ""
+echo "2. Download training data (REQUIRED - ~30-60 min):"
+echo "   bash scripts/download_data.sh"
+echo ""
+echo "3. (Optional) Test GPU:"
+echo "   python scripts/test_gpu.py"
+echo ""
+echo "4. Submit SLURM job (from any login node):"
+echo "   sbatch scripts/speedrun.slurm"
 echo "=================================================="

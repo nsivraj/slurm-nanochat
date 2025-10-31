@@ -48,8 +48,9 @@ echo "Node: $SLURM_NODELIST"
 echo "Start time: $(date)"
 echo "=================================================="
 
-# Load required CUDA modules (for GPU support)
+# Load required modules (Python 3.12, CUDA)
 module purge
+module load python/3.12.5
 module load cuda-toolkit
 module load spack-managed-x86-64_v3/v1.0
 
@@ -111,10 +112,10 @@ echo "=================================================="
 
 DATA_CHECK_FAILED=false
 
-# Check dataset shards
-DATA_DIR="$NANOCHAT_BASE_DIR/data"
+# Check dataset shards (nanochat downloads to base_data directory as .parquet files)
+DATA_DIR="$NANOCHAT_BASE_DIR/base_data"
 if [ -d "$DATA_DIR" ]; then
-    SHARD_COUNT=$(ls -1 $DATA_DIR/*.bin 2>/dev/null | wc -l)
+    SHARD_COUNT=$(ls -1 $DATA_DIR/*.parquet 2>/dev/null | wc -l)
     if [ $SHARD_COUNT -ge 240 ]; then
         echo "✓ Dataset shards: $SHARD_COUNT/240"
     else
@@ -126,8 +127,8 @@ else
     DATA_CHECK_FAILED=true
 fi
 
-# Check tokenizer
-TOKENIZER_PATH="$NANOCHAT_BASE_DIR/tokenizer/tokenizer_2pow16.model"
+# Check tokenizer (saved as tokenizer.pkl)
+TOKENIZER_PATH="$NANOCHAT_BASE_DIR/tokenizer/tokenizer.pkl"
 if [ -f "$TOKENIZER_PATH" ]; then
     echo "✓ Tokenizer trained"
 else

@@ -60,6 +60,40 @@ source $VENV_PATH/bin/activate
 echo -e "\nPython: $(which python)"
 echo "Python version: $(python --version)"
 
+# Check Python version (need 3.10+)
+PYTHON_VERSION=$(python -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')
+REQUIRED_VERSION="3.10"
+if [ "$(printf '%s\n' "$REQUIRED_VERSION" "$PYTHON_VERSION" | sort -V | head -n1)" != "$REQUIRED_VERSION" ]; then
+    echo -e "\n❌ ERROR: Python $REQUIRED_VERSION or higher required"
+    echo "Current Python version: $PYTHON_VERSION"
+    echo ""
+    echo "Please load Python 3.12 module:"
+    echo "  module load python/3.12.5"
+    echo "  Then recreate virtual environment and retry"
+    exit 1
+fi
+
+# Check for required Python packages
+echo -e "\nChecking required Python packages..."
+MISSING_PACKAGES=()
+
+python -c "import requests" 2>/dev/null || MISSING_PACKAGES+=("requests")
+python -c "import tqdm" 2>/dev/null || MISSING_PACKAGES+=("tqdm")
+python -c "import torch" 2>/dev/null || MISSING_PACKAGES+=("torch")
+
+if [ ${#MISSING_PACKAGES[@]} -gt 0 ]; then
+    echo -e "\n❌ ERROR: Missing required Python packages: ${MISSING_PACKAGES[*]}"
+    echo ""
+    echo "Please install dependencies first:"
+    echo "  pip install uv"
+    echo "  pip install -e '.[gpu]'"
+    echo ""
+    echo "Then re-run this script"
+    exit 1
+fi
+
+echo "✓ All required packages found"
+
 # Test internet connectivity
 echo -e "\n=================================================="
 echo "Testing Internet Connectivity"
@@ -242,8 +276,8 @@ echo "=================================================="
 
 VERIFICATION_FAILED=false
 
-# Check dataset shards
-SHARD_COUNT=$(ls -1 $NANOCHAT_BASE_DIR/data/*.bin 2>/dev/null | wc -l)
+# Check dataset shards (nanochat downloads to base_data directory as .parquet files)
+SHARD_COUNT=$(ls -1 $NANOCHAT_BASE_DIR/base_data/*.parquet 2>/dev/null | wc -l)
 if [ $SHARD_COUNT -ge 240 ]; then
     echo "✓ Dataset shards: $SHARD_COUNT/240"
 else
@@ -251,11 +285,11 @@ else
     VERIFICATION_FAILED=true
 fi
 
-# Check tokenizer
-if [ -f "$NANOCHAT_BASE_DIR/tokenizer/tokenizer_2pow16.model" ]; then
+# Check tokenizer (saved as tokenizer.pkl, not tokenizer_2pow16.model)
+if [ -f "$NANOCHAT_BASE_DIR/tokenizer/tokenizer.pkl" ]; then
     echo "✓ Tokenizer trained"
 else
-    echo "❌ Tokenizer not found"
+    echo "❌ Tokenizer not found: $NANOCHAT_BASE_DIR/tokenizer/tokenizer.pkl"
     VERIFICATION_FAILED=true
 fi
 
