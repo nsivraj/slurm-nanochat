@@ -13,6 +13,7 @@
 #SBATCH --mail-type=BEGIN,END,FAIL
 
 # SLURM job script for nanochat speedrun on Ptolemy HPC
+# NOTE: SLURM will automatically create the logs/ directory if it doesn't exist
 # This is the "Best ChatGPT clone that $100 can buy"
 # Designed to run in ~4 hours on 8XH100 node (or 8XA100 a bit slower)
 #
@@ -70,6 +71,8 @@ export UV_CACHE_DIR="/scratch/ptolemy/users/$USER/cache/uv"
 export PIP_CACHE_DIR="/scratch/ptolemy/users/$USER/cache/pip"
 
 # Create necessary directories
+# Note: logs/ directory is created here as a safety measure
+# SLURM should create it automatically for output files, but we ensure it exists
 mkdir -p logs
 mkdir -p $NANOCHAT_BASE_DIR
 mkdir -p $HF_HOME

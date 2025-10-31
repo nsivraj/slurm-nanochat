@@ -458,8 +458,7 @@ pip install -e '.[gpu]'
 # 6. Download data (~30-60 min)
 bash scripts/download_data.sh
 
-# 7. Submit job (from any node)
-mkdir -p logs
+# 7. Submit job (from any node - logs directory created automatically)
 sbatch scripts/speedrun.slurm
 
 # 8. Monitor

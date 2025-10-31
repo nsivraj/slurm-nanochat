@@ -170,16 +170,13 @@ See [SCRATCH_STORAGE_VERIFICATION.md](SCRATCH_STORAGE_VERIFICATION.md) for detai
 
 ### To Submit Training Job (any Ptolemy node)
 
-1. **Create logs directory:**
+1. **Submit SLURM job:**
    ```bash
    cd /scratch/ptolemy/users/$USER/slurm-nanochat
-   mkdir -p logs
-   ```
-
-2. **Submit SLURM job:**
-   ```bash
    sbatch scripts/speedrun.slurm
    ```
+
+   **Note:** The logs directory will be created automatically by the SLURM script.
 
    Or with email:
    ```bash
@@ -299,8 +296,7 @@ Before submitting your first job, verify (all on ptolemy-devel-1):
 - [ ] Installed dependencies: `uv sync --extra gpu`
 - [ ] **⭐ Downloaded all training data: `bash scripts/download_data.sh`** (CRITICAL!)
 - [ ] Verified data download completed successfully (check script output)
-- [ ] Created `logs/` directory: `mkdir -p logs`
-- [ ] Ready to submit: `sbatch scripts/speedrun.slurm`
+- [ ] Ready to submit: `sbatch scripts/speedrun.slurm` (logs directory created automatically)
 
 **If you skip the data download step, the SLURM job will fail immediately with instructions.**
 

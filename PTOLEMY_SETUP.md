@@ -86,10 +86,7 @@ From any Ptolemy login node:
 ```bash
 cd /scratch/ptolemy/users/$USER/slurm-nanochat
 
-# Create logs directory
-mkdir -p logs
-
-# Submit the job
+# Submit the job (logs directory will be created automatically)
 sbatch scripts/speedrun.slurm
 ```
 
