@@ -417,8 +417,11 @@ If you encounter issues not covered here:
    # Dependencies installed?
    pip list | grep -E "torch|requests|tqdm"
 
-   # Data downloaded?
-   ls -lh /scratch/ptolemy/users/$USER/nanochat-cache/data/ | wc -l  # Should be 240+
+   # Data downloaded? (check for .parquet files in base_data directory)
+   ls -1 /scratch/ptolemy/users/$USER/nanochat-cache/base_data/*.parquet | wc -l  # Should be 240+
+
+   # Tokenizer trained?
+   ls -lh /scratch/ptolemy/users/$USER/nanochat-cache/tokenizer/tokenizer.pkl
    ```
 
 4. **Contact Ptolemy HPC support:**

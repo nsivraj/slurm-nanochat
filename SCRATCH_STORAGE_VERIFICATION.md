@@ -12,10 +12,11 @@ All large data files, models, and caches are configured to write to `/scratch` v
 /scratch/ptolemy/users/$USER/
 ├── nanochat-venv/              # Python virtual environment (~2-3 GB)
 ├── nanochat-cache/             # Main nanochat data (~30+ GB)
-│   ├── data/                   # Dataset shards (~24 GB)
+│   ├── base_data/              # Dataset shards as .parquet files (~24 GB)
 │   ├── models/                 # Trained model checkpoints (~2-5 GB)
 │   ├── eval_bundle/            # Evaluation data (~162 MB)
-│   ├── tokenizer/              # Trained tokenizer (~100 MB)
+│   ├── tokenizer/              # Trained tokenizer (tokenizer.pkl ~100 MB)
+│   ├── identity_conversations.jsonl  # Identity data (~2.3 MB)
 │   └── report/                 # Training reports (<1 MB)
 ├── cache/                      # Various caches
 │   ├── huggingface/            # HF models & datasets (~1-5 GB)
@@ -117,7 +118,7 @@ Training failed
 ### ✅ With Scratch Storage
 ```
 # All data writes to scratch:
-Writing to /scratch/ptolemy/users/$USER/nanochat-cache/data/shard_123.bin
+Writing to /scratch/ptolemy/users/$USER/nanochat-cache/base_data/shard_123.parquet
 ✓ Success - plenty of space in scratch
 ```
 
@@ -194,7 +195,7 @@ If you want to free up space after assignment:
 
 ```bash
 # Remove training data (keep models)
-rm -rf /scratch/ptolemy/users/$USER/nanochat-cache/data/
+rm -rf /scratch/ptolemy/users/$USER/nanochat-cache/base_data/
 
 # Remove caches (can be re-downloaded)
 rm -rf /scratch/ptolemy/users/$USER/cache/

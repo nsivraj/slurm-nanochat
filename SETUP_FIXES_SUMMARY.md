@@ -82,6 +82,28 @@ bash: uv: command not found
 
 ---
 
+### 5. Incorrect File Paths and Extensions ❌
+**Problem:** Verification scripts checked for wrong directory name and file extension
+
+**Error:**
+```
+❌ Dataset shards: 0/240 (insufficient)
+❌ Tokenizer not found
+```
+
+**Root Cause:**
+- nanochat downloads data to `base_data/` directory, not `data/`
+- Dataset files are `.parquet` format, not `.bin`
+- Tokenizer is saved as `tokenizer.pkl`, not `tokenizer_2pow16.model`
+
+**Fix Applied:**
+- ✅ Updated `scripts/download_data.sh` to check `base_data/*.parquet`
+- ✅ Updated `scripts/speedrun.slurm` to check `base_data/*.parquet`
+- ✅ Updated both scripts to check for `tokenizer.pkl`
+- ✅ Updated documentation to reflect correct paths
+
+---
+
 ## Files Modified
 
 ### Scripts Updated
