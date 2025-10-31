@@ -16,7 +16,7 @@ This guide explains how to set up and run nanochat on the Ptolemy HPC cluster at
 # On Ptolemy
 cd /scratch/ptolemy/users/$USER
 git clone git@github.com:nsivraj/slurm-nanochat.git
-cd nanochat
+cd slurm-nanochat
 ```
 
 ### 2. Configure Email Notifications
@@ -55,6 +55,7 @@ pip install -e '.[gpu]'
 ```
 
 **Important notes:**
+
 - nanochat requires Python 3.10+. The setup script loads Python 3.12.5 automatically
 - `pip install -e '.[gpu]'` installs nanochat in editable mode with all GPU dependencies
 - This includes: torch, requests, tqdm, numpy, and all other required packages
