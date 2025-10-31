@@ -167,9 +167,23 @@ vocab_sizes = {}
 for tokenizer_name in ["gpt2", "gpt4", "ours"]:
 
     if tokenizer_name == "gpt2":
-        tokenizer = RustBPETokenizer.from_pretrained("gpt2") # gpt-2 base model tokenizer
+        try:
+            tokenizer = RustBPETokenizer.from_pretrained("gpt2") # gpt-2 base model tokenizer
+        except Exception as e:
+            print(f"\n⚠️  WARNING: Could not load GPT-2 tokenizer (no internet access)")
+            print(f"   Error: {e}")
+            print(f"   Skipping GPT-2 tokenizer comparison.")
+            print(f"   To enable: Run download_data.sh on ptolemy-devel-1 first.\n")
+            continue
     elif tokenizer_name == "gpt4":
-        tokenizer = RustBPETokenizer.from_pretrained("cl100k_base") # gpt-4 base model tokenizer
+        try:
+            tokenizer = RustBPETokenizer.from_pretrained("cl100k_base") # gpt-4 base model tokenizer
+        except Exception as e:
+            print(f"\n⚠️  WARNING: Could not load GPT-4 tokenizer (no internet access)")
+            print(f"   Error: {e}")
+            print(f"   Skipping GPT-4 tokenizer comparison.")
+            print(f"   To enable: Run download_data.sh on ptolemy-devel-1 first.\n")
+            continue
     else:
         tokenizer = get_tokenizer()
 
@@ -196,8 +210,14 @@ RESET = '\033[0m'
 
 # Print vocab sizes
 print(f"\nVocab sizes:")
-print(f"GPT-2: {vocab_sizes['gpt2']}")
-print(f"GPT-4: {vocab_sizes['gpt4']}")
+if 'gpt2' in vocab_sizes:
+    print(f"GPT-2: {vocab_sizes['gpt2']}")
+else:
+    print(f"GPT-2: [not available - no internet access]")
+if 'gpt4' in vocab_sizes:
+    print(f"GPT-4: {vocab_sizes['gpt4']}")
+else:
+    print(f"GPT-4: [not available - no internet access]")
 print(f"Ours: {vocab_sizes['ours']}")
 
 def print_comparison(baseline_name, baseline_results, ours_results, all_text):
@@ -239,14 +259,28 @@ def print_comparison(baseline_name, baseline_results, ours_results, all_text):
               f"{better:<10}")
 
 # Print comparisons
-print_comparison("GPT-2", tokenizer_results['gpt2'], tokenizer_results['ours'], all_text)
-print_comparison("GPT-4", tokenizer_results['gpt4'], tokenizer_results['ours'], all_text)
+if 'gpt2' in tokenizer_results:
+    print_comparison("GPT-2", tokenizer_results['gpt2'], tokenizer_results['ours'], all_text)
+else:
+    print("\n[Skipping GPT-2 comparison - tokenizer not available]")
+
+if 'gpt4' in tokenizer_results:
+    print_comparison("GPT-4", tokenizer_results['gpt4'], tokenizer_results['ours'], all_text)
+else:
+    print("\n[Skipping GPT-4 comparison - tokenizer not available]")
 
 # Log to report
 from nanochat.report import get_report
 lines = []
 for baseline_name in ["GPT-2", "GPT-4"]:
     baseline_key = baseline_name.lower().replace('-', '')
+    if baseline_key not in tokenizer_results:
+        lines.append(f"### Comparison with {baseline_name}")
+        lines.append("")
+        lines.append(f"*{baseline_name} tokenizer not available (no internet access on compute node)*")
+        lines.append("")
+        continue
+
     baseline_results = tokenizer_results[baseline_key]
     ours_results = tokenizer_results['ours']
     lines.append(f"### Comparison with {baseline_name}")
