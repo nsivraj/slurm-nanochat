@@ -240,16 +240,50 @@ att = self.attn_dropout(att)
 y = att @ v
 ```
 
+## Model Architecture and Scale
+
+The nanochat speedrun trains a **depth=20 (d20)** Transformer model with the following specifications:
+
+### Model Parameters (d20)
+- **Total Parameters:** 561 million (561M)
+- **Number of Layers:** 20 transformer blocks
+- **Model Dimension:** 1,280 (calculated as depth × 64)
+- **Number of Attention Heads:** 10
+- **Head Dimension:** 128
+- **Vocabulary Size:** ~65,536 tokens (2^16 from BPE tokenizer)
+- **Context Length:** 2,048 tokens
+- **Training Data:** ~11.2 billion tokens (using Chinchilla ratio of 20:1 tokens-to-parameters)
+
+### Architecture Derivation Formula
+
+From `scripts/base_train.py` lines 88-91:
+```python
+depth = 20
+num_layers = depth                        # 20 layers
+model_dim = depth * 64                    # 1,280 dimensions
+num_heads = max(1, (model_dim + 127) // 128)  # 10 heads (ceil division)
+```
+
+### Comparison to Other Model Scales
+
+| Model | Depth | Parameters | Training Time (8xH100) | Cost | Performance |
+|-------|-------|-----------|----------------------|------|-------------|
+| **d20** (Ptolemy speedrun) | 20 | 561M | ~4 hours | ~$100 | Below GPT-2 |
+| d26 | 26 | ~1.1B | ~12 hours | ~$300 | Slightly outperforms GPT-2 |
+| d32 | 32 | 1.9B | ~33 hours | ~$800 | Outperforms GPT-2 (2019) |
+
+**Context:** The d20 model (561M params) falls between GPT-2 Medium (355M) and GPT-2 Large (774M) in size, demonstrating a complete LLM training pipeline at reasonable cost.
+
 ## Expected Training Results
 
-On 8xA100 GPUs, the d20 speedrun model (561M parameters) should achieve:
+On 8xA100 GPUs, the d20 speedrun model should achieve:
 
 - **Training Time:** ~4 hours
 - **CORE Score:** ~0.22
 - **ARC-Easy:** ~0.35-0.40
 - **GSM8K:** ~0.02-0.05
-- **Model Size:** 561M parameters
-- **Training Data:** ~11.2B tokens
+- **Final Model Size:** 561M parameters
+- **Training Tokens:** ~11.2B tokens
 
 These numbers will be in your `report.md` after training.
 
