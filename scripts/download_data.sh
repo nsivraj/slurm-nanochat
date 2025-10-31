@@ -269,6 +269,81 @@ else
     fi
 fi
 
+# Download GPT-2 and GPT-4 tokenizers (for tok_eval.py)
+echo -e "\n=================================================="
+echo "Pre-downloading GPT-2/GPT-4 Tokenizers (tiktoken)"
+echo "=================================================="
+
+echo "Downloading tiktoken tokenizer data for offline use..."
+python -c "
+import sys
+try:
+    import tiktoken
+    # Pre-download GPT-2 tokenizer
+    print('Downloading GPT-2 tokenizer...')
+    enc_gpt2 = tiktoken.get_encoding('gpt2')
+    print('✓ GPT-2 tokenizer cached')
+
+    # Pre-download GPT-4 tokenizer (cl100k_base)
+    print('Downloading GPT-4 tokenizer (cl100k_base)...')
+    enc_gpt4 = tiktoken.get_encoding('cl100k_base')
+    print('✓ GPT-4 tokenizer cached')
+
+    print('All tokenizers successfully cached!')
+    sys.exit(0)
+except Exception as e:
+    print(f'❌ ERROR: Failed to download tokenizers: {e}')
+    sys.exit(1)
+"
+
+if [ $? -eq 0 ]; then
+    echo "✓ Tokenizers pre-downloaded for offline use"
+else
+    echo "❌ ERROR: Failed to pre-download tokenizers"
+    echo "Note: tok_eval.py will skip GPT-2/GPT-4 comparison if this fails"
+fi
+
+# Download SmolTalk dataset (for midtraining)
+echo -e "\n=================================================="
+echo "Pre-downloading SmolTalk Dataset"
+echo "=================================================="
+
+SMOLTALK_CACHE="$HF_HOME/datasets/HuggingFaceTB___smol-smoltalk"
+if [ -d "$SMOLTALK_CACHE" ]; then
+    echo "✓ SmolTalk dataset already cached"
+else
+    echo "Downloading HuggingFaceTB/smol-smoltalk dataset (~500MB)..."
+    echo "This is required for midtraining step..."
+
+    python -c "
+import sys
+try:
+    from datasets import load_dataset
+    # Pre-download the SmolTalk dataset
+    print('Downloading SmolTalk train split...')
+    ds_train = load_dataset('HuggingFaceTB/smol-smoltalk', split='train')
+    print(f'✓ Train split: {len(ds_train)} rows')
+
+    print('Downloading SmolTalk test split...')
+    ds_test = load_dataset('HuggingFaceTB/smol-smoltalk', split='test')
+    print(f'✓ Test split: {len(ds_test)} rows')
+
+    print('SmolTalk dataset successfully cached!')
+    sys.exit(0)
+except Exception as e:
+    print(f'❌ ERROR: Failed to download SmolTalk dataset: {e}')
+    sys.exit(1)
+"
+
+    if [ $? -eq 0 ]; then
+        echo "✓ SmolTalk dataset downloaded and cached"
+    else
+        echo "❌ ERROR: Failed to download SmolTalk dataset"
+        echo "Midtraining will fail without this dataset!"
+        exit 1
+    fi
+fi
+
 # Verify all required data is present
 echo -e "\n=================================================="
 echo "Verifying Downloaded Data"
@@ -307,6 +382,23 @@ if [ -f "$IDENTITY_FILE" ]; then
 else
     echo "❌ Identity conversations not found"
     VERIFICATION_FAILED=true
+fi
+
+# Check SmolTalk dataset
+if [ -d "$SMOLTALK_CACHE" ] || [ -d "$HF_HOME/datasets/HuggingFaceTB___smol-smoltalk" ]; then
+    echo "✓ SmolTalk dataset cached"
+else
+    echo "⚠️  SmolTalk dataset not cached (midtraining may fail)"
+    # Don't fail verification, just warn
+fi
+
+# Check tokenizers (optional - just for info)
+python -c "import tiktoken; tiktoken.get_encoding('gpt2')" 2>/dev/null
+if [ $? -eq 0 ]; then
+    echo "✓ Tiktoken tokenizers cached"
+else
+    echo "⚠️  Tiktoken tokenizers not cached (tok_eval will skip comparison)"
+    # Don't fail verification, just warn
 fi
 
 # Final summary

@@ -15,6 +15,8 @@ This is a common HPC security practice, but it means the nanochat workflow must 
 **Data Size:** ~24GB
 
 ```bash
+# SSH to login node
+ssh [username]@ptolemy-login.arc.msstate.edu
 # SSH to devel node
 ssh [username]@ptolemy-devel-1.arc.msstate.edu
 
@@ -26,6 +28,7 @@ bash scripts/download_data.sh
 ```
 
 This script downloads:
+
 - 240 dataset shards (~24GB) for training
 - Evaluation bundle (~162MB)
 - Identity conversations (~2.3MB)
@@ -44,9 +47,12 @@ sbatch scripts/speedrun.slurm
 ```
 
 The SLURM job will:
+
 1. **Verify all data is downloaded** (fails if not)
 2. Run training pipeline (pretraining → midtraining → SFT)
 3. Generate report with results
+4. To get the report after running the training: scp [username]@ptolemy-login.arc.msstate.edu:/scratch/ptolemy/users/$USER/slurm-nanochat/report.md .
+5. Example: scp ncj79@ptolemy-login.arc.msstate.edu:/scratch/ptolemy/users/ncj79/slurm-nanochat/report.md .
 
 ## What Happens If You Skip Phase 1?
 
@@ -75,13 +81,16 @@ The job will fail immediately (within seconds) with this error message.
 ## Why This Design?
 
 ### HPC Security Model
+
 - Compute nodes are isolated from internet for security
 - Only development/login nodes have internet access
 - Prevents compromised jobs from exfiltrating data
 - Standard practice across most HPC facilities
 
 ### Our Solution
+
 1. **`scripts/download_data.sh`** - Run on devel node with internet
+
    - Downloads all required data
    - Builds tokenizer
    - Stores in scratch storage
@@ -93,17 +102,18 @@ The job will fail immediately (within seconds) with this error message.
 
 ## Quick Reference
 
-| Task | Server | Internet? | Duration |
-|------|--------|-----------|----------|
-| Setup environment | ptolemy-devel-1 | ✅ Yes | 15-30 min |
-| Download data | ptolemy-devel-1 | ✅ Yes | 30-60 min |
-| Submit SLURM job | Any login node | N/A | < 1 min |
-| Training (via SLURM) | GPU compute nodes | ❌ No | ~4 hours |
-| Chat with model | GPU node (interactive) | ❌ No | N/A |
+| Task                 | Server                 | Internet? | Duration  |
+| -------------------- | ---------------------- | --------- | --------- |
+| Setup environment    | ptolemy-devel-1        | ✅ Yes    | 15-30 min |
+| Download data        | ptolemy-devel-1        | ✅ Yes    | 30-60 min |
+| Submit SLURM job     | Any login node         | N/A       | < 1 min   |
+| Training (via SLURM) | GPU compute nodes      | ❌ No     | ~4 hours  |
+| Chat with model      | GPU node (interactive) | ❌ No     | N/A       |
 
 ## Files Created for This Workflow
 
 - **`scripts/download_data.sh`** ⭐ NEW
+
   - Handles all internet-dependent operations
   - Must be run on ptolemy-devel-1
   - Downloads ~24GB of data
@@ -156,11 +166,13 @@ If all files exist, you're ready to submit the SLURM job!
 ## TL;DR
 
 1. **First time only:** Run on ptolemy-devel-1
+
    ```bash
    bash scripts/download_data.sh  # ~1 hour, ~24GB
    ```
 
 2. **Every time:** Submit SLURM job from any login node
+
    ```bash
    sbatch scripts/speedrun.slurm  # ~4 hours on GPUs
    ```

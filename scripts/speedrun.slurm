@@ -7,7 +7,7 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --gres=gpu:a100:8
 #SBATCH --mem=256G
-#SBATCH --time=8:00:00
+#SBATCH --time=14:00:00
 #SBATCH --output=logs/nanochat_speedrun_%j.out
 #SBATCH --error=logs/nanochat_speedrun_%j.err
 #SBATCH --mail-type=BEGIN,END,FAIL
