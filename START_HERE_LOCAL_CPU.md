@@ -153,8 +153,12 @@ bash scripts/local_cpu_train.sh
 
 ### "What if something breaks?"
 📚 Check the troubleshooting sections in:
-- LOCAL_CPU_TRAINING.md
-- LOCAL_CPU_QUICKSTART.md
+- LOCAL_CPU_TRAINING.md (detailed troubleshooting)
+- LOCAL_CPU_QUICKSTART.md (quick fixes)
+
+**Common issues:**
+- `uv: command not found` → Script auto-fixes, or run `export PATH="$HOME/.local/bin:$PATH"`
+- Rust `edition2024` error → Run `rustup update` to get Rust 1.93.0+ nightly
 
 ### "Should I use CPU or GPU training?"
 - **Use CPU** for learning and understanding

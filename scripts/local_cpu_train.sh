@@ -57,10 +57,20 @@ if ! command -v uv &> /dev/null; then
     echo "Installing uv package manager..."
     curl -LsSf https://astral.sh/uv/install.sh | sh
 
-    # Add uv to PATH for this session
-    export PATH="$HOME/.cargo/bin:$PATH"
+    # Add uv to PATH for this session (uv installs to ~/.local/bin)
+    export PATH="$HOME/.local/bin:$PATH"
+
+    # Also check if it was installed elsewhere
+    if [ -f "$HOME/.cargo/bin/uv" ]; then
+        export PATH="$HOME/.cargo/bin:$PATH"
+    fi
 else
     echo "✓ uv already installed"
+fi
+
+# Ensure uv is in PATH (in case it was already installed)
+if [ -d "$HOME/.local/bin" ]; then
+    export PATH="$HOME/.local/bin:$PATH"
 fi
 
 # Create virtual environment (if it doesn't exist)

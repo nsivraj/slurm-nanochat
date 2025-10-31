@@ -163,6 +163,44 @@ Example report metrics you might see:
 
 ## Troubleshooting
 
+### Issue: `uv: command not found`
+
+**Problem**: The `uv` package manager was installed but isn't in your PATH.
+
+**Solution**: The script has been updated to automatically add `~/.local/bin` to PATH. If you still see this error:
+```bash
+# Manually add uv to PATH
+export PATH="$HOME/.local/bin:$PATH"
+
+# Or restart your shell
+source ~/.bashrc  # or ~/.zshrc
+```
+
+### Issue: `edition2024` Feature Required (Rust/Cargo Error)
+
+**Problem**: Your Rust/Cargo version is too old to support edition2024.
+
+**Error message**:
+```
+feature `edition2024` is required
+The package requires the Cargo feature called `edition2024`, but that feature is not stabilized in this version of Cargo
+```
+
+**Solution**: Update Rust to the latest version:
+```bash
+# Update Rust to latest nightly (which supports edition2024)
+rustup update
+
+# Verify the update
+rustc --version  # Should be 1.93.0-nightly or newer
+cargo --version  # Should be 1.93.0-nightly or newer
+
+# Then run the training script again
+bash scripts/local_cpu_train.sh
+```
+
+**Note**: The nanochat repo uses Rust edition2024, which requires a recent nightly build (October 2025 or newer).
+
 ### Issue: Out of Memory
 
 **Solution**: Edit `scripts/local_cpu_train.sh` and reduce parameters further:
@@ -196,6 +234,9 @@ Example report metrics you might see:
 ```bash
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 source "$HOME/.cargo/env"
+
+# Make sure you have the latest version
+rustup update
 ```
 
 ## Analyzing the Code

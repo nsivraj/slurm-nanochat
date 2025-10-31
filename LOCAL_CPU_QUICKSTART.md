@@ -153,6 +153,21 @@ tasks/smoltalk.py         # Conversational data
 
 ## Troubleshooting
 
+### `uv: command not found`
+The script automatically adds `uv` to PATH. If you still see this error:
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+bash scripts/local_cpu_train.sh
+```
+
+### Rust `edition2024` Error
+Update Rust to the latest version:
+```bash
+rustup update
+rustc --version  # Should be 1.93.0-nightly or newer
+bash scripts/local_cpu_train.sh
+```
+
 ### Out of Memory
 Reduce model size or sequence length in the script:
 ```bash

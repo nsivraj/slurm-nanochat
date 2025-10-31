@@ -207,30 +207,66 @@ That's it! Wait 1-3 hours and you'll have a complete trained chatbot.
 5. **Compare**: Read `TRAINING_COMPARISON.md`
 6. **Scale**: Move to GPU training when ready
 
-## Testing Recommendations
+## Prerequisites and Setup
 
-Before using, verify:
+Before running the training script:
 
-1. Script is executable:
+1. **Python 3.10 or higher**:
    ```bash
-   chmod +x scripts/local_cpu_train.sh
+   python --version  # Should be 3.10+
    ```
 
-2. Python 3.10+ available:
+2. **Rust/Cargo (latest nightly)**:
    ```bash
-   python --version
+   rustup update
+   rustc --version  # Should be 1.93.0-nightly or newer (October 2025+)
+   cargo --version  # Should be 1.93.0-nightly or newer
    ```
 
-3. Sufficient disk space:
+   **Important**: The nanochat repo requires Rust edition2024, which is only available in recent nightly builds (October 2025 or newer). If you have an older version, run `rustup update`.
+
+3. **Sufficient disk space**:
    ```bash
    df -h ~
    # Need ~2GB free
    ```
 
-4. Internet connection working:
+4. **Internet connection**:
    ```bash
    curl -I https://www.google.com
    ```
+
+## Common Issues and Solutions
+
+### Issue 1: `uv: command not found`
+
+**Problem**: The `uv` package manager installs to `~/.local/bin` which may not be in your PATH.
+
+**Solution**: The script has been updated to automatically add `~/.local/bin` to PATH. If you still encounter this:
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+bash scripts/local_cpu_train.sh
+```
+
+### Issue 2: Rust `edition2024` Error
+
+**Problem**: Older versions of Rust/Cargo (before October 2025) don't support edition2024.
+
+**Error message**:
+```
+feature `edition2024` is required
+The package requires the Cargo feature called `edition2024`, but that feature is not stabilized in this version of Cargo
+```
+
+**Solution**: Update Rust to the latest nightly:
+```bash
+rustup update
+rustc --version  # Verify 1.93.0-nightly or newer
+cargo --version  # Verify 1.93.0-nightly or newer
+bash scripts/local_cpu_train.sh
+```
+
+**Note**: This is the most common issue when first running the script.
 
 ## Success Metrics
 
