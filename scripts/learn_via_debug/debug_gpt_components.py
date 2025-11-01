@@ -294,25 +294,72 @@ class InstrumentedGPT(GPT):
                     print_component(f"  Step 2a: RMSNorm(x) [pre-MLP]", x_norm_mlp,
                                   "Normalize BEFORE MLP (pre-norm architecture)")
 
-                    # Step 2b: MLP
-                    # MLP does: x = c_proj(relu(c_fc(x))^2)
-                    mlp_fc = block.mlp.c_fc(x_norm_mlp)
-                    print_component(f"  Step 2b.i: MLP fc projection", mlp_fc,
-                                  f"Project to 4x dimension: {self.config.n_embd} -> {4*self.config.n_embd}")
+                    # ===================================================================
+                    # Step 2b: MLP (Multi-Layer Perceptron / Feed-Forward Network)
+                    # ===================================================================
+                    print(f"\n{Colors.CYAN}  {Colors.BOLD}Step 2b: MLP (Feed-Forward Network){Colors.END}")
+                    print(f"{Colors.BLUE}  Input/Output: [batch={B}, seq_len={T}, d_model={self.config.n_embd}] → [batch={B}, seq_len={T}, d_model={self.config.n_embd}]{Colors.END}")
+                    print(f"{Colors.BLUE}  Architecture: Two linear layers with ReLU² activation{Colors.END}")
+                    print(f"{Colors.BLUE}  Expansion pattern: d_model → 4*d_model → d_model{Colors.END}")
+                    print(f"{Colors.BLUE}  Formula: MLP(x) = c_proj(ReLU²(c_fc(x))){Colors.END}\n")
 
-                    mlp_activated = F.relu(mlp_fc).square()
-                    print_component(f"  Step 2b.ii: ReLU^2 activation", mlp_activated,
-                                  "Activation: ReLU(x)^2 (squared ReLU)")
+                    # Step 2b.i: First linear layer (expansion)
+                    print(f"{Colors.YELLOW}  [2b.i] First Linear Layer: Expansion to 4x dimension{Colors.END}")
+                    print(f"{Colors.BLUE}    c_fc: Linear({self.config.n_embd}, {4*self.config.n_embd}, bias=False){Colors.END}")
+                    print(f"{Colors.BLUE}    Expands representation to wider intermediate dimension{Colors.END}\n")
+
+                    mlp_fc = block.mlp.c_fc(x_norm_mlp)
+                    print_component(f"    Input to MLP", x_norm_mlp,
+                                  f"Shape: [B={B}, T={T}, d_model={self.config.n_embd}]")
+                    print_component(f"    After c_fc (expansion)", mlp_fc,
+                                  f"Shape: [B={B}, T={T}, 4*d_model={4*self.config.n_embd}] - Expanded to 4x")
+
+                    # Step 2b.ii: ReLU² activation
+                    print(f"\n{Colors.YELLOW}  [2b.ii] ReLU² Activation (Squared ReLU){Colors.END}")
+                    print(f"{Colors.BLUE}    Formula: ReLU²(x) = (max(0, x))²{Colors.END}")
+                    print(f"{Colors.BLUE}    Why ReLU²? Provides smoother gradients than ReLU{Colors.END}")
+                    print(f"{Colors.BLUE}    Alternative to: GELU, SwiGLU, or other activations{Colors.END}\n")
+
+                    mlp_relu = F.relu(mlp_fc)
+                    mlp_activated = mlp_relu.square()
+
+                    print_component(f"    After ReLU (before squaring)", mlp_relu,
+                                  "All negative values zeroed out")
+                    print_component(f"    After ReLU² (squared)", mlp_activated,
+                                  "Non-linearity: enhances positive activations")
+
+                    # Show the effect of ReLU²
+                    num_zeros_before = (mlp_fc <= 0).sum().item()
+                    num_zeros_after = (mlp_activated == 0).sum().item()
+                    total_elements = mlp_fc.numel()
+                    print(f"{Colors.YELLOW}    Sparsity: {num_zeros_after}/{total_elements} ({100*num_zeros_after/total_elements:.1f}%) zeros after ReLU²{Colors.END}")
+                    print(f"{Colors.YELLOW}    Original negative values: {num_zeros_before}/{total_elements} ({100*num_zeros_before/total_elements:.1f}%){Colors.END}\n")
+
+                    # Step 2b.iii: Second linear layer (projection back)
+                    print(f"{Colors.YELLOW}  [2b.iii] Second Linear Layer: Projection back to d_model{Colors.END}")
+                    print(f"{Colors.BLUE}    c_proj: Linear({4*self.config.n_embd}, {self.config.n_embd}, bias=False){Colors.END}")
+                    print(f"{Colors.BLUE}    Projects back to original dimension for residual connection{Colors.END}\n")
 
                     mlp_output = block.mlp.c_proj(mlp_activated)
-                    print_component(f"  Step 2b.iii: MLP output projection", mlp_output,
-                                  f"Project back to model dim: {4*self.config.n_embd} -> {self.config.n_embd}")
+                    print_component(f"    After c_proj (output)", mlp_output,
+                                  f"Shape: [B={B}, T={T}, d_model={self.config.n_embd}] - Back to original dim")
+
+                    print(f"\n{Colors.GREEN}  ✓ MLP complete: {self.config.n_embd} → {4*self.config.n_embd} → {self.config.n_embd}{Colors.END}")
+                    print(f"{Colors.YELLOW}  Key insight: 4x expansion provides capacity for complex transformations{Colors.END}")
+                    print(f"{Colors.YELLOW}  No bias terms (bias=False) - simpler, often works just as well{Colors.END}\n")
 
                     # Step 2c: Residual connection
+                    print(f"{Colors.YELLOW}  [2c] Residual Connection{Colors.END}")
+                    print(f"{Colors.BLUE}    Formula: x_new = x_old + MLP(RMSNorm(x_old)){Colors.END}")
+                    print(f"{Colors.BLUE}    Allows gradient flow directly through the network{Colors.END}\n")
+
                     x_after_mlp = x_after_attn + mlp_output
-                    print_component(f"  Step 2c: x + MLP(RMSNorm(x)) [RESIDUAL]",
-                                  x_after_mlp,
-                                  "Add MLP output to input (residual connection)")
+                    print_component(f"    Input to MLP path (x_after_attn)", x_after_attn,
+                                  "State after attention residual")
+                    print_component(f"    MLP output", mlp_output,
+                                  "Transformation to be added")
+                    print_component(f"    x + MLP(RMSNorm(x)) [RESIDUAL]", x_after_mlp,
+                                  "Combined via addition (residual connection)")
 
                     # Set x to the output for next block
                     x = x_after_mlp

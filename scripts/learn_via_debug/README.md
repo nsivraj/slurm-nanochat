@@ -36,7 +36,11 @@ Traces the execution of key GPT components during training:
      - Scaled dot-product attention with causal masking
      - Softmax and weighted sum over values
      - Head concatenation and output projection
-   - **Part 2**: Pre-norm (RMSNorm) + MLP + Residual
+   - **Part 2**: Pre-norm (RMSNorm) + **MLP** + Residual
+     - Input/Output shape: [batch, seq_len, d_model] → [batch, seq_len, d_model]
+     - Two linear layers: d_model → 4*d_model → d_model (bias=False)
+     - ReLU² activation with sparsity statistics
+     - 4x expansion pattern for complex transformations
    - Shows each step: normalization, projections, activations, residual additions
 4. **RMSNorm** - Normalization without learnable parameters (shown before each operation)
 5. **Language modeling head** - Final projection to vocabulary
@@ -86,11 +90,14 @@ The script provides detailed output showing:
       - [1b.v] Scaled dot-product attention (shows causal mask visualization for small T)
       - [1b.vi] Concatenate heads and output projection
     - Step 1c: Residual connection (x + attention output)
-  - **Part 2: MLP path**
+  - **Part 2: MLP (Feed-Forward Network) path**
     - Step 2a: RMSNorm before MLP
-    - Step 2b.i: MLP fc projection (expand to 4x dimension)
-    - Step 2b.ii: ReLU² activation
-    - Step 2b.iii: MLP output projection (back to model dimension)
+    - Step 2b: **Detailed MLP breakdown**:
+      - Input/Output: [batch, seq_len, d_model] → [batch, seq_len, d_model]
+      - Architecture: Two linear layers with ReLU² activation
+      - [2b.i] First linear layer (expansion): d_model → 4*d_model (bias=False)
+      - [2b.ii] ReLU² activation: Shows ReLU and squared outputs, sparsity statistics
+      - [2b.iii] Second linear layer (projection): 4*d_model → d_model (bias=False)
     - Step 2c: Residual connection (x + MLP output)
 - Final RMSNorm before LM head
 - Logit computation and softcapping
