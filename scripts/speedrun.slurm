@@ -70,11 +70,19 @@ export RUSTUP_HOME="/scratch/ptolemy/users/$USER/.rustup"
 export UV_CACHE_DIR="/scratch/ptolemy/users/$USER/cache/uv"
 export PIP_CACHE_DIR="/scratch/ptolemy/users/$USER/cache/pip"
 
+# --- WandB Offline Configuration ---
+# GPU nodes have no internet, so we run WandB in offline mode.
+# Logs will be saved locally and can be synced later from a devel node.
+# See: https://docs.wandb.ai/guides/track/environment-variables
+export WANDB_MODE=offline
+export WANDB_DIR="$NANOCHAT_BASE_DIR/wandb" # Store wandb logs in our persistent cache
+
 # Create necessary directories
 # Note: logs/ directory is created here as a safety measure
 # SLURM should create it automatically for output files, but we ensure it exists
 mkdir -p logs
 mkdir -p $NANOCHAT_BASE_DIR
+mkdir -p $WANDB_DIR
 mkdir -p $HF_HOME
 mkdir -p $TORCH_HOME
 mkdir -p $CARGO_HOME
