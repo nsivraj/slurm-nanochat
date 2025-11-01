@@ -51,6 +51,18 @@ Traces the execution of key GPT components during training:
 ```bash
 # Basic usage with defaults (matches local_cpu_train.sh parameters)
 python -m scripts.learn_via_debug.debug_gpt_components
+```
+
+**Output:**
+- Colored terminal output for real-time viewing
+- Markdown file saved to `scripts/learn_via_debug/debug_trace_YYYY-MM-DD_HH-MM-SS.md`
+- The markdown file contains **colored HTML** that matches the terminal colors
+- Colors work in VS Code, GitHub, and most markdown viewers
+- Perfect for reviewing in an IDE or sharing
+
+**More examples:**
+
+```bash
 
 # With custom parameters (still CPU-safe)
 python -m scripts.learn_via_debug.debug_gpt_components \
@@ -168,12 +180,16 @@ Total Parameters: 15,805,440 (15.8M)
 
 ### Color Coding
 
-- **Purple/Header**: Section titles
-- **Cyan**: Component names
-- **Green**: Tensor values and statistics
-- **Blue**: Explanatory text about what's happening
-- **Yellow**: Important notes and formulas
-- **Red**: Iteration markers
+Both terminal and markdown output use the same color scheme:
+
+- <span style="color: #af87ff">**Purple**</span>: Section titles and headers
+- <span style="color: #5fafff">**Cyan**</span>: Component names
+- <span style="color: #5faf00">**Green**</span>: Tensor values and statistics
+- <span style="color: #0087ff">**Blue**</span>: Explanatory text about what's happening
+- <span style="color: #d7af00">**Yellow**</span>: Important notes and formulas
+- <span style="color: #d70000">**Red**</span>: Iteration markers
+
+The markdown file uses HTML `<span>` tags with inline styles for colors, which are supported by VS Code, GitHub, and most modern markdown viewers.
 
 ### Key Sections to Watch
 
@@ -200,6 +216,12 @@ If something is unclear:
 2. Read `docs/explanation/architecture.md`
 3. Compare the debug output to the actual code line-by-line
 
+## Output Files
+
+The script generates markdown trace files named `debug_trace_YYYY-MM-DD_HH-MM-SS.md`.
+
+These files are automatically added to `.gitignore` and won't be committed to the repository. They're for your local learning and reference.
+
 ## Contributing
 
 To add more debug scripts:
@@ -208,3 +230,4 @@ To add more debug scripts:
 3. Match local CPU training parameters by default
 4. Add detailed explanatory text
 5. Update this README
+6. Use the `DebugLog` class to capture output to markdown files

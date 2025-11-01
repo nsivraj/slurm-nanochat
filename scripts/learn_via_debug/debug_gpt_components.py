@@ -16,11 +16,30 @@ import os
 import torch
 import torch.nn.functional as F
 from contextlib import nullcontext
+from datetime import datetime
 
 from nanochat.gpt import GPT, GPTConfig, norm, apply_rotary_emb
 from nanochat.dataloader import tokenizing_distributed_data_loader
 from nanochat.common import compute_init, compute_cleanup, print0
 from nanochat.tokenizer import get_tokenizer
+
+# Output buffer for writing to markdown file
+class DebugLog:
+    def __init__(self):
+        self.lines = []
+
+    def log(self, text):
+        """Add a line to the log"""
+        self.lines.append(text)
+        print(text)  # Also print to terminal
+
+    def save(self, filepath):
+        """Save to markdown file"""
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write('\n'.join(self.lines))
+
+# Global debug log
+debug_log = DebugLog()
 
 # Color codes for terminal output
 class Colors:
@@ -34,18 +53,61 @@ class Colors:
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
 
+# Color mapping for markdown (HTML colors matching terminal)
+class MDColors:
+    HEADER = '#af87ff'  # Purple
+    BLUE = '#0087ff'    # Blue
+    CYAN = '#5fafff'    # Cyan
+    GREEN = '#5faf00'   # Green
+    YELLOW = '#d7af00'  # Yellow
+    RED = '#d70000'     # Red
+
+def cprint(text, markdown_text=None):
+    """Print to terminal with colors and log to markdown with HTML colors"""
+    import re
+    print(text)
+
+    if markdown_text is None:
+        # Auto-convert ANSI codes to HTML colors
+        md = text
+        # Replace color codes with HTML spans
+        md = md.replace(f'{Colors.HEADER}', f'<span style="color: {MDColors.HEADER}">')
+        md = md.replace(f'{Colors.BLUE}', f'<span style="color: {MDColors.BLUE}">')
+        md = md.replace(f'{Colors.CYAN}', f'<span style="color: {MDColors.CYAN}">')
+        md = md.replace(f'{Colors.GREEN}', f'<span style="color: {MDColors.GREEN}">')
+        md = md.replace(f'{Colors.YELLOW}', f'<span style="color: {MDColors.YELLOW}">')
+        md = md.replace(f'{Colors.RED}', f'<span style="color: {MDColors.RED}">')
+        md = md.replace(f'{Colors.END}', '</span>')
+        md = md.replace(f'{Colors.BOLD}', '<strong>')
+        md = md.replace(f'{Colors.UNDERLINE}', '<u>')
+        # Remove any remaining ANSI codes
+        md = re.sub(r'\033\[[0-9;]*m', '', md)
+        debug_log.log(md)
+    else:
+        debug_log.log(markdown_text)
+
 def print_section(title):
-    """Print a colored section header"""
-    print(f"\n{Colors.BOLD}{Colors.HEADER}{'='*80}{Colors.END}")
-    print(f"{Colors.BOLD}{Colors.HEADER}{title:^80}{Colors.END}")
-    print(f"{Colors.BOLD}{Colors.HEADER}{'='*80}{Colors.END}\n")
+    """Print a section header - both colored terminal and markdown"""
+    # Terminal output
+    terminal_line = f"\n{Colors.BOLD}{Colors.HEADER}{'='*80}{Colors.END}"
+    print(terminal_line)
+    terminal_line = f"{Colors.BOLD}{Colors.HEADER}{title:^80}{Colors.END}"
+    print(terminal_line)
+    terminal_line = f"{Colors.BOLD}{Colors.HEADER}{'='*80}{Colors.END}\n"
+    print(terminal_line)
+
+    # Markdown output with color (using HTML for markdown viewers that support it)
+    debug_log.log(f"\n---\n")
+    debug_log.log(f'## <span style="color: #af87ff">{title}</span>\n')
 
 def print_component(name, tensor, extra_info=""):
     """Print information about a tensor component"""
     if tensor is None:
-        print(f"{Colors.YELLOW}[{name}] None{Colors.END}")
+        cprint(f"{Colors.YELLOW}[{name}] None{Colors.END}")
+        debug_log.log(f'**<span style="color: #d7af00">{name}</span>**: None\n')
         return
 
+    # Terminal output with colors
     print(f"{Colors.CYAN}[{name}]{Colors.END}")
     print(f"  Shape: {Colors.GREEN}{tuple(tensor.shape)}{Colors.END}")
     print(f"  Dtype: {Colors.GREEN}{tensor.dtype}{Colors.END}")
@@ -57,6 +119,19 @@ def print_component(name, tensor, extra_info=""):
     if extra_info:
         print(f"  {Colors.BLUE}{extra_info}{Colors.END}")
     print()
+
+    # Markdown output with colors (HTML spans)
+    debug_log.log(f'#### <span style="color: #5fafff">{name}</span>\n')
+    debug_log.log(f'- **Shape**: <span style="color: #5faf00">`{tuple(tensor.shape)}`</span>')
+    debug_log.log(f'- **Dtype**: <span style="color: #5faf00">`{tensor.dtype}`</span>')
+    debug_log.log(f'- **Device**: <span style="color: #5faf00">`{tensor.device}`</span>')
+    debug_log.log(f'- **Mean**: <span style="color: #5faf00">{tensor.float().mean().item():.6f}</span>')
+    debug_log.log(f'- **Std**: <span style="color: #5faf00">{tensor.float().std().item():.6f}</span>')
+    debug_log.log(f'- **Min**: <span style="color: #5faf00">{tensor.float().min().item():.6f}</span>')
+    debug_log.log(f'- **Max**: <span style="color: #5faf00">{tensor.float().max().item():.6f}</span>')
+    if extra_info:
+        debug_log.log(f'\n*<span style="color: #0087ff">{extra_info}</span>*')
+    debug_log.log("")
 
 class InstrumentedGPT(GPT):
     """
@@ -82,15 +157,21 @@ class InstrumentedGPT(GPT):
         # =============================================================================
         if self.verbose:
             print_section("1. TOKEN EMBEDDINGS (wte)")
-            print(f"{Colors.BLUE}The token embedding layer converts discrete token IDs to continuous vectors{Colors.END}")
-            print(f"{Colors.BLUE}Embedding matrix shape: (vocab_size={self.config.vocab_size}, n_embd={self.config.n_embd}){Colors.END}\n")
+            cprint(
+                f"{Colors.BLUE}The token embedding layer converts discrete token IDs to continuous vectors{Colors.END}",
+                f'<span style="color: {MDColors.BLUE}">The token embedding layer converts discrete token IDs to continuous vectors</span>'
+            )
+            cprint(
+                f"{Colors.BLUE}Embedding matrix shape: (vocab_size={self.config.vocab_size}, n_embd={self.config.n_embd}){Colors.END}\n",
+                f'<span style="color: {MDColors.BLUE}">Embedding matrix shape: (vocab_size={self.config.vocab_size}, n_embd={self.config.n_embd})</span>\n'
+            )
 
         x = self.transformer.wte(idx)  # (B, T, n_embd)
 
         if self.verbose:
             print_component("Token embeddings (before norm)", x,
                           f"Each token is now a {self.config.n_embd}-dimensional vector")
-            print(f"{Colors.YELLOW}Note: wte is learned during training{Colors.END}\n")
+            cprint(f"{Colors.YELLOW}Note: wte is learned during training{Colors.END}\n")
 
         # Norm after token embedding (architectural choice)
         x = norm(x)
@@ -104,9 +185,9 @@ class InstrumentedGPT(GPT):
         # =============================================================================
         if self.verbose:
             print_section("2. POSITIONAL EMBEDDINGS (RoPE)")
-            print(f"{Colors.BLUE}RoPE (Rotary Position Embeddings) encodes position information{Colors.END}")
-            print(f"{Colors.BLUE}Unlike learned positional embeddings, RoPE is applied via rotation{Colors.END}")
-            print(f"{Colors.BLUE}Rotary embeddings are precomputed and cached for efficiency{Colors.END}\n")
+            cprint(f"{Colors.BLUE}RoPE (Rotary Position Embeddings) encodes position information{Colors.END}")
+            cprint(f"{Colors.BLUE}Unlike learned positional embeddings, RoPE is applied via rotation{Colors.END}")
+            cprint(f"{Colors.BLUE}Rotary embeddings are precomputed and cached for efficiency{Colors.END}\n")
 
         # Grab the rotary embeddings for the current sequence length
         assert T <= self.cos.size(1), f"Sequence length {T} exceeds rotary cache {self.cos.size(1)}"
@@ -118,17 +199,17 @@ class InstrumentedGPT(GPT):
         if self.verbose:
             print_component("Rotary cos", cos, f"Precomputed cosine values for position encoding")
             print_component("Rotary sin", sin, f"Precomputed sine values for position encoding")
-            print(f"{Colors.YELLOW}These will be applied to Q and K in attention via rotation{Colors.END}\n")
-            print(f"{Colors.BLUE}RoPE formula: rotate pairs of dims using cos/sin{Colors.END}")
-            print(f"{Colors.BLUE}  q_rotated = [q[:d/2] * cos + q[d/2:] * sin, q[:d/2] * (-sin) + q[d/2:] * cos]{Colors.END}\n")
+            cprint(f"{Colors.YELLOW}These will be applied to Q and K in attention via rotation{Colors.END}\n")
+            cprint(f"{Colors.BLUE}RoPE formula: rotate pairs of dims using cos/sin{Colors.END}")
+            cprint(f"{Colors.BLUE}  q_rotated = [q[:d/2] * cos + q[d/2:] * sin, q[:d/2] * (-sin) + q[d/2:] * cos]{Colors.END}\n")
 
         # =============================================================================
         # 3. STACK OF TRANSFORMER BLOCKS
         # =============================================================================
         if self.verbose:
             print_section(f"3. TRANSFORMER BLOCK STACK (depth={self.config.n_layer})")
-            print(f"{Colors.BLUE}Model has {self.config.n_layer} layers stacked sequentially{Colors.END}")
-            print(f"{Colors.BLUE}Each block contains: Attention + MLP with residual connections{Colors.END}\n")
+            cprint(f"{Colors.BLUE}Model has {self.config.n_layer} layers stacked sequentially{Colors.END}")
+            cprint(f"{Colors.BLUE}Each block contains: Attention + MLP with residual connections{Colors.END}\n")
 
         for layer_idx, block in enumerate(self.transformer.h):
             x_before_block = x.clone() if self.verbose else None
@@ -148,7 +229,7 @@ class InstrumentedGPT(GPT):
                     # PART 1: Pre-norm + Attention + Residual
                     # ===================================================================
                     print(f"\n{Colors.CYAN}  {Colors.BOLD}PART 1: Pre-norm + Attention + Residual{Colors.END}")
-                    print(f"{Colors.YELLOW}  Formula: x = x + Attention(RMSNorm(x)){Colors.END}\n")
+                    cprint(f"{Colors.YELLOW}  Formula: x = x + Attention(RMSNorm(x)){Colors.END}\n")
 
                     # Step 1a: Pre-norm (RMSNorm before attention)
                     x_norm_attn = norm(x_before_block)
@@ -159,11 +240,11 @@ class InstrumentedGPT(GPT):
                     # Step 1b: CAUSAL SELF-ATTENTION (detailed breakdown)
                     # ===================================================================
                     print(f"\n{Colors.CYAN}  {Colors.BOLD}Step 1b: CAUSAL SELF-ATTENTION{Colors.END}")
-                    print(f"{Colors.BLUE}  Input/Output: [batch={B}, seq_len={T}, d_model={self.config.n_embd}] → [batch={B}, seq_len={T}, d_model={self.config.n_embd}]{Colors.END}")
-                    print(f"{Colors.BLUE}  Architecture: Project to Q,K,V → RoPE → QK Norm → Scaled Dot-Product → Causal Mask → Softmax{Colors.END}\n")
+                    cprint(f"{Colors.BLUE}  Input/Output: [batch={B}, seq_len={T}, d_model={self.config.n_embd}] → [batch={B}, seq_len={T}, d_model={self.config.n_embd}]{Colors.END}")
+                    cprint(f"{Colors.BLUE}  Architecture: Project to Q,K,V → RoPE → QK Norm → Scaled Dot-Product → Causal Mask → Softmax{Colors.END}\n")
 
                     # Step 1b.i: Q, K, V Projections
-                    print(f"{Colors.YELLOW}  [1b.i] Project to Queries, Keys, Values{Colors.END}")
+                    cprint(f"{Colors.YELLOW}  [1b.i] Project to Queries, Keys, Values{Colors.END}")
                     q = block.attn.c_q(x_norm_attn).view(B, T, block.attn.n_head, block.attn.head_dim)
                     k = block.attn.c_k(x_norm_attn).view(B, T, block.attn.n_kv_head, block.attn.head_dim)
                     v = block.attn.c_v(x_norm_attn).view(B, T, block.attn.n_kv_head, block.attn.head_dim)
@@ -185,10 +266,10 @@ class InstrumentedGPT(GPT):
                         print(f"{Colors.YELLOW}    Standard attention: n_head == n_kv_head = {block.attn.n_head}{Colors.END}\n")
 
                     # Step 1b.ii: RoPE (Rotary Position Embeddings)
-                    print(f"{Colors.YELLOW}  [1b.ii] Apply RoPE (Rotary Position Embeddings){Colors.END}")
-                    print(f"{Colors.BLUE}    RoPE encodes position via rotation (no learned parameters){Colors.END}")
-                    print(f"{Colors.BLUE}    Formula: rotate(x, θ) where θ depends on position{Colors.END}")
-                    print(f"{Colors.BLUE}    Applied to Q and K only (not V){Colors.END}\n")
+                    cprint(f"{Colors.YELLOW}  [1b.ii] Apply RoPE (Rotary Position Embeddings){Colors.END}")
+                    cprint(f"{Colors.BLUE}    RoPE encodes position via rotation (no learned parameters){Colors.END}")
+                    cprint(f"{Colors.BLUE}    Formula: rotate(x, θ) where θ depends on position{Colors.END}")
+                    cprint(f"{Colors.BLUE}    Applied to Q and K only (not V){Colors.END}\n")
 
                     q_before_rope = q.clone()
                     k_before_rope = k.clone()
@@ -203,13 +284,13 @@ class InstrumentedGPT(GPT):
                     print_component(f"    K after RoPE", k_rope,
                                   "Position-encoded key vectors via rotation")
 
-                    print(f"{Colors.YELLOW}    Note: RoPE allows relative position encoding{Colors.END}")
-                    print(f"{Colors.YELLOW}    The dot product Q·K naturally captures relative distances{Colors.END}\n")
+                    cprint(f"{Colors.YELLOW}    Note: RoPE allows relative position encoding{Colors.END}")
+                    cprint(f"{Colors.YELLOW}    The dot product Q·K naturally captures relative distances{Colors.END}\n")
 
                     # Step 1b.iii: QK Normalization
-                    print(f"{Colors.YELLOW}  [1b.iii] QK Normalization{Colors.END}")
-                    print(f"{Colors.BLUE}    Normalize Q and K separately for training stability{Colors.END}")
-                    print(f"{Colors.BLUE}    Uses RMSNorm (no learnable parameters){Colors.END}\n")
+                    cprint(f"{Colors.YELLOW}  [1b.iii] QK Normalization{Colors.END}")
+                    cprint(f"{Colors.BLUE}    Normalize Q and K separately for training stability{Colors.END}")
+                    cprint(f"{Colors.BLUE}    Uses RMSNorm (no learnable parameters){Colors.END}\n")
 
                     q_norm = norm(q_rope)
                     k_norm = norm(k_rope)
@@ -221,8 +302,8 @@ class InstrumentedGPT(GPT):
 
                     # Step 1b.iv: Prepare for attention (transpose heads)
                     print(f"\n{Colors.YELLOW}  [1b.iv] Transpose for Multi-Head Attention{Colors.END}")
-                    print(f"{Colors.BLUE}    Reshape: [B, T, H, D] → [B, H, T, D]{Colors.END}")
-                    print(f"{Colors.BLUE}    Makes head dimension the batch dimension for parallel processing{Colors.END}\n")
+                    cprint(f"{Colors.BLUE}    Reshape: [B, T, H, D] → [B, H, T, D]{Colors.END}")
+                    cprint(f"{Colors.BLUE}    Makes head dimension the batch dimension for parallel processing{Colors.END}\n")
 
                     q_transposed = q_norm.transpose(1, 2)
                     k_transposed = k_norm.transpose(1, 2)
@@ -237,9 +318,9 @@ class InstrumentedGPT(GPT):
 
                     # Step 1b.v: Scaled Dot-Product Attention
                     print(f"\n{Colors.YELLOW}  [1b.v] Scaled Dot-Product Attention with Causal Mask{Colors.END}")
-                    print(f"{Colors.BLUE}    Formula: Attention(Q,K,V) = softmax(Q·K^T / √d_k) · V{Colors.END}")
-                    print(f"{Colors.BLUE}    Causal mask ensures token i can only attend to tokens ≤ i{Colors.END}")
-                    print(f"{Colors.BLUE}    This maintains autoregressive property for language modeling{Colors.END}\n")
+                    cprint(f"{Colors.BLUE}    Formula: Attention(Q,K,V) = softmax(Q·K^T / √d_k) · V{Colors.END}")
+                    cprint(f"{Colors.BLUE}    Causal mask ensures token i can only attend to tokens ≤ i{Colors.END}")
+                    cprint(f"{Colors.BLUE}    This maintains autoregressive property for language modeling{Colors.END}\n")
 
                     # Show what the causal mask looks like for small sequences
                     if T <= 8:
@@ -265,8 +346,8 @@ class InstrumentedGPT(GPT):
 
                     # Step 1b.vi: Concatenate heads and project
                     print(f"\n{Colors.YELLOW}  [1b.vi] Concatenate Heads and Project{Colors.END}")
-                    print(f"{Colors.BLUE}    Reshape: [B, H, T, D] → [B, T, H*D] = [B, T, d_model]{Colors.END}")
-                    print(f"{Colors.BLUE}    Then apply output projection to residual stream{Colors.END}\n")
+                    cprint(f"{Colors.BLUE}    Reshape: [B, H, T, D] → [B, T, H*D] = [B, T, d_model]{Colors.END}")
+                    cprint(f"{Colors.BLUE}    Then apply output projection to residual stream{Colors.END}\n")
 
                     attn_concat = attn_output_raw.transpose(1, 2).contiguous().view(B, T, -1)
                     print_component(f"    Concatenated heads", attn_concat,
@@ -287,7 +368,7 @@ class InstrumentedGPT(GPT):
                     # PART 2: Pre-norm + MLP + Residual
                     # ===================================================================
                     print(f"\n{Colors.CYAN}  {Colors.BOLD}PART 2: Pre-norm + MLP + Residual{Colors.END}")
-                    print(f"{Colors.YELLOW}  Formula: x = x + MLP(RMSNorm(x)){Colors.END}\n")
+                    cprint(f"{Colors.YELLOW}  Formula: x = x + MLP(RMSNorm(x)){Colors.END}\n")
 
                     # Step 2a: Pre-norm (RMSNorm before MLP)
                     x_norm_mlp = norm(x_after_attn)
@@ -298,15 +379,15 @@ class InstrumentedGPT(GPT):
                     # Step 2b: MLP (Multi-Layer Perceptron / Feed-Forward Network)
                     # ===================================================================
                     print(f"\n{Colors.CYAN}  {Colors.BOLD}Step 2b: MLP (Feed-Forward Network){Colors.END}")
-                    print(f"{Colors.BLUE}  Input/Output: [batch={B}, seq_len={T}, d_model={self.config.n_embd}] → [batch={B}, seq_len={T}, d_model={self.config.n_embd}]{Colors.END}")
-                    print(f"{Colors.BLUE}  Architecture: Two linear layers with ReLU² activation{Colors.END}")
-                    print(f"{Colors.BLUE}  Expansion pattern: d_model → 4*d_model → d_model{Colors.END}")
-                    print(f"{Colors.BLUE}  Formula: MLP(x) = c_proj(ReLU²(c_fc(x))){Colors.END}\n")
+                    cprint(f"{Colors.BLUE}  Input/Output: [batch={B}, seq_len={T}, d_model={self.config.n_embd}] → [batch={B}, seq_len={T}, d_model={self.config.n_embd}]{Colors.END}")
+                    cprint(f"{Colors.BLUE}  Architecture: Two linear layers with ReLU² activation{Colors.END}")
+                    cprint(f"{Colors.BLUE}  Expansion pattern: d_model → 4*d_model → d_model{Colors.END}")
+                    cprint(f"{Colors.BLUE}  Formula: MLP(x) = c_proj(ReLU²(c_fc(x))){Colors.END}\n")
 
                     # Step 2b.i: First linear layer (expansion)
-                    print(f"{Colors.YELLOW}  [2b.i] First Linear Layer: Expansion to 4x dimension{Colors.END}")
-                    print(f"{Colors.BLUE}    c_fc: Linear({self.config.n_embd}, {4*self.config.n_embd}, bias=False){Colors.END}")
-                    print(f"{Colors.BLUE}    Expands representation to wider intermediate dimension{Colors.END}\n")
+                    cprint(f"{Colors.YELLOW}  [2b.i] First Linear Layer: Expansion to 4x dimension{Colors.END}")
+                    cprint(f"{Colors.BLUE}    c_fc: Linear({self.config.n_embd}, {4*self.config.n_embd}, bias=False){Colors.END}")
+                    cprint(f"{Colors.BLUE}    Expands representation to wider intermediate dimension{Colors.END}\n")
 
                     mlp_fc = block.mlp.c_fc(x_norm_mlp)
                     print_component(f"    Input to MLP", x_norm_mlp,
@@ -316,9 +397,9 @@ class InstrumentedGPT(GPT):
 
                     # Step 2b.ii: ReLU² activation
                     print(f"\n{Colors.YELLOW}  [2b.ii] ReLU² Activation (Squared ReLU){Colors.END}")
-                    print(f"{Colors.BLUE}    Formula: ReLU²(x) = (max(0, x))²{Colors.END}")
-                    print(f"{Colors.BLUE}    Why ReLU²? Provides smoother gradients than ReLU{Colors.END}")
-                    print(f"{Colors.BLUE}    Alternative to: GELU, SwiGLU, or other activations{Colors.END}\n")
+                    cprint(f"{Colors.BLUE}    Formula: ReLU²(x) = (max(0, x))²{Colors.END}")
+                    cprint(f"{Colors.BLUE}    Why ReLU²? Provides smoother gradients than ReLU{Colors.END}")
+                    cprint(f"{Colors.BLUE}    Alternative to: GELU, SwiGLU, or other activations{Colors.END}\n")
 
                     mlp_relu = F.relu(mlp_fc)
                     mlp_activated = mlp_relu.square()
@@ -332,26 +413,26 @@ class InstrumentedGPT(GPT):
                     num_zeros_before = (mlp_fc <= 0).sum().item()
                     num_zeros_after = (mlp_activated == 0).sum().item()
                     total_elements = mlp_fc.numel()
-                    print(f"{Colors.YELLOW}    Sparsity: {num_zeros_after}/{total_elements} ({100*num_zeros_after/total_elements:.1f}%) zeros after ReLU²{Colors.END}")
-                    print(f"{Colors.YELLOW}    Original negative values: {num_zeros_before}/{total_elements} ({100*num_zeros_before/total_elements:.1f}%){Colors.END}\n")
+                    cprint(f"{Colors.YELLOW}    Sparsity: {num_zeros_after}/{total_elements} ({100*num_zeros_after/total_elements:.1f}%) zeros after ReLU²{Colors.END}")
+                    cprint(f"{Colors.YELLOW}    Original negative values: {num_zeros_before}/{total_elements} ({100*num_zeros_before/total_elements:.1f}%){Colors.END}\n")
 
                     # Step 2b.iii: Second linear layer (projection back)
-                    print(f"{Colors.YELLOW}  [2b.iii] Second Linear Layer: Projection back to d_model{Colors.END}")
-                    print(f"{Colors.BLUE}    c_proj: Linear({4*self.config.n_embd}, {self.config.n_embd}, bias=False){Colors.END}")
-                    print(f"{Colors.BLUE}    Projects back to original dimension for residual connection{Colors.END}\n")
+                    cprint(f"{Colors.YELLOW}  [2b.iii] Second Linear Layer: Projection back to d_model{Colors.END}")
+                    cprint(f"{Colors.BLUE}    c_proj: Linear({4*self.config.n_embd}, {self.config.n_embd}, bias=False){Colors.END}")
+                    cprint(f"{Colors.BLUE}    Projects back to original dimension for residual connection{Colors.END}\n")
 
                     mlp_output = block.mlp.c_proj(mlp_activated)
                     print_component(f"    After c_proj (output)", mlp_output,
                                   f"Shape: [B={B}, T={T}, d_model={self.config.n_embd}] - Back to original dim")
 
                     print(f"\n{Colors.GREEN}  ✓ MLP complete: {self.config.n_embd} → {4*self.config.n_embd} → {self.config.n_embd}{Colors.END}")
-                    print(f"{Colors.YELLOW}  Key insight: 4x expansion provides capacity for complex transformations{Colors.END}")
-                    print(f"{Colors.YELLOW}  No bias terms (bias=False) - simpler, often works just as well{Colors.END}\n")
+                    cprint(f"{Colors.YELLOW}  Key insight: 4x expansion provides capacity for complex transformations{Colors.END}")
+                    cprint(f"{Colors.YELLOW}  No bias terms (bias=False) - simpler, often works just as well{Colors.END}\n")
 
                     # Step 2c: Residual connection
-                    print(f"{Colors.YELLOW}  [2c] Residual Connection{Colors.END}")
-                    print(f"{Colors.BLUE}    Formula: x_new = x_old + MLP(RMSNorm(x_old)){Colors.END}")
-                    print(f"{Colors.BLUE}    Allows gradient flow directly through the network{Colors.END}\n")
+                    cprint(f"{Colors.YELLOW}  [2c] Residual Connection{Colors.END}")
+                    cprint(f"{Colors.BLUE}    Formula: x_new = x_old + MLP(RMSNorm(x_old)){Colors.END}")
+                    cprint(f"{Colors.BLUE}    Allows gradient flow directly through the network{Colors.END}\n")
 
                     x_after_mlp = x_after_attn + mlp_output
                     print_component(f"    Input to MLP path (x_after_attn)", x_after_attn,
@@ -365,8 +446,8 @@ class InstrumentedGPT(GPT):
                     x = x_after_mlp
 
                     print(f"\n{Colors.GREEN}  ✓ Block {layer_idx} complete{Colors.END}")
-                    print(f"{Colors.YELLOW}  Key insight: Pre-norm means we normalize BEFORE each operation{Colors.END}")
-                    print(f"{Colors.YELLOW}  Residuals allow gradients to flow directly through the network{Colors.END}\n")
+                    cprint(f"{Colors.YELLOW}  Key insight: Pre-norm means we normalize BEFORE each operation{Colors.END}")
+                    cprint(f"{Colors.YELLOW}  Residuals allow gradients to flow directly through the network{Colors.END}\n")
                 else:
                     # For blocks we're skipping, still execute them
                     x = block(x, cos_sin, kv_cache)
@@ -382,7 +463,7 @@ class InstrumentedGPT(GPT):
         # =============================================================================
         if self.verbose:
             print_section("4. FINAL RMSNorm")
-            print(f"{Colors.BLUE}Final normalization before the language modeling head{Colors.END}\n")
+            cprint(f"{Colors.BLUE}Final normalization before the language modeling head{Colors.END}\n")
 
         x_before_final_norm = x.clone() if self.verbose else None
         x = norm(x)
@@ -391,17 +472,17 @@ class InstrumentedGPT(GPT):
             print_component("Before final norm", x_before_final_norm)
             print_component("After final norm", x, "Ready for LM head projection")
             print(f"\n{Colors.YELLOW}RMSNorm formula: x / rms(x) * scale{Colors.END}")
-            print(f"{Colors.YELLOW}  where rms(x) = sqrt(mean(x^2)){Colors.END}")
-            print(f"{Colors.YELLOW}  No learnable parameters in this implementation{Colors.END}\n")
+            cprint(f"{Colors.YELLOW}  where rms(x) = sqrt(mean(x^2)){Colors.END}")
+            cprint(f"{Colors.YELLOW}  No learnable parameters in this implementation{Colors.END}\n")
 
         # =============================================================================
         # 5. LANGUAGE MODELING HEAD
         # =============================================================================
         if self.verbose:
             print_section("5. LANGUAGE MODELING HEAD")
-            print(f"{Colors.BLUE}Projects from model dimension to vocabulary size{Colors.END}")
-            print(f"{Colors.BLUE}Shape: (n_embd={self.config.n_embd}) -> (vocab_size={self.config.vocab_size}){Colors.END}")
-            print(f"{Colors.BLUE}Weights are UNTIED from token embeddings (separate parameters){Colors.END}\n")
+            cprint(f"{Colors.BLUE}Projects from model dimension to vocabulary size{Colors.END}")
+            cprint(f"{Colors.BLUE}Shape: (n_embd={self.config.n_embd}) -> (vocab_size={self.config.vocab_size}){Colors.END}")
+            cprint(f"{Colors.BLUE}Weights are UNTIED from token embeddings (separate parameters){Colors.END}\n")
 
         # Compute logits
         softcap = 15
@@ -543,6 +624,14 @@ if __name__ == "__main__":
     num_heads = max(1, (model_dim + 127) // 128)
     num_kv_heads = num_heads
 
+    # Add markdown header
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    debug_log.log(f"# GPT Component Debug Trace")
+    debug_log.log(f"\n**Generated**: {timestamp}")
+    debug_log.log(f"**Configuration**: depth={num_layers}, d_model={model_dim}, n_heads={num_heads}")
+    debug_log.log(f"**Device**: {device} ({device_type})")
+    debug_log.log(f"**Iterations**: {num_iterations}\n")
+
     print0(f"\n{Colors.BOLD}Initializing instrumented GPT model...{Colors.END}")
     print0(f"  depth={num_layers}, d_model={model_dim}, n_heads={num_heads}")
     print0(f"  Device: {device}, Device type: {device_type}\n")
@@ -580,8 +669,8 @@ if __name__ == "__main__":
 
     for step in range(num_iterations):
         print(f"\n{Colors.BOLD}{Colors.RED}{'#'*80}{Colors.END}")
-        print(f"{Colors.BOLD}{Colors.RED}ITERATION {step+1}/{num_iterations}{Colors.END}")
-        print(f"{Colors.BOLD}{Colors.RED}{'#'*80}{Colors.END}\n")
+        cprint(f"{Colors.BOLD}{Colors.RED}ITERATION {step+1}/{num_iterations}{Colors.END}")
+        cprint(f"{Colors.BOLD}{Colors.RED}{'#'*80}{Colors.END}\n")
 
         # Get batch
         x, y = next(train_loader)
@@ -597,8 +686,8 @@ if __name__ == "__main__":
 
         if step == 0:
             print_section("BACKWARD PASS")
-            print(f"{Colors.BLUE}Gradients computed via backpropagation{Colors.END}")
-            print(f"{Colors.BLUE}Checking gradients for key components:{Colors.END}\n")
+            cprint(f"{Colors.BLUE}Gradients computed via backpropagation{Colors.END}")
+            cprint(f"{Colors.BLUE}Checking gradients for key components:{Colors.END}\n")
 
             # Check gradients
             if model.transformer.wte.weight.grad is not None:
@@ -614,7 +703,7 @@ if __name__ == "__main__":
         # Clear gradients
         model.zero_grad(set_to_none=True)
 
-        print(f"{Colors.GREEN}✓ Iteration {step+1} complete - Loss: {loss.item():.6f}{Colors.END}\n")
+        cprint(f"{Colors.GREEN}✓ Iteration {step+1} complete - Loss: {loss.item():.6f}{Colors.END}\n")
 
     print_section("TRAINING COMPLETE")
     print(f"{Colors.GREEN}Successfully traced {num_iterations} iterations!{Colors.END}")
@@ -625,5 +714,21 @@ if __name__ == "__main__":
     print(f"  4. RMSNorm stabilizes (no learnable params)")
     print(f"  5. LM head projects to vocab (untied from wte)")
     print(f"  6. Model scales with depth, d_model, and n_heads\n")
+
+    # Add markdown summary
+    debug_log.log("\n## Key Takeaways\n")
+    debug_log.log("1. **Token embeddings (wte)** convert discrete tokens to continuous vectors")
+    debug_log.log("2. **RoPE** adds positional info via rotation (not learned parameters)")
+    debug_log.log("3. Each **Block** has Attention + MLP with residual connections")
+    debug_log.log("4. **RMSNorm** stabilizes training (no learnable parameters)")
+    debug_log.log("5. **LM head** projects to vocabulary (untied from wte)")
+    debug_log.log("6. Model scales with depth, d_model, and n_heads\n")
+
+    # Save to markdown file
+    output_dir = os.path.join(os.path.dirname(__file__))
+    output_file = os.path.join(output_dir, f"debug_trace_{timestamp.replace(':', '-').replace(' ', '_')}.md")
+    debug_log.save(output_file)
+
+    print(f"\n{Colors.GREEN}✓ Debug trace saved to: {output_file}{Colors.END}\n")
 
     compute_cleanup()
