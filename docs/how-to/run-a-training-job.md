@@ -34,6 +34,7 @@ That's it! The script runs the complete pipeline automatically.
 The script executes all training phases sequentially:
 
 **Phase 1: Tokenizer Training** (~10-15 min)
+
 ```bash
 # Downloads 4 data shards (~400MB)
 # Trains BPE tokenizer on 1B characters
@@ -41,6 +42,7 @@ The script executes all training phases sequentially:
 ```
 
 **Phase 2: Base Pretraining** (~30-60 min)
+
 ```bash
 # Trains 4-layer model (~8M parameters)
 # 50 optimization steps
@@ -48,6 +50,7 @@ The script executes all training phases sequentially:
 ```
 
 **Phase 3: Midtraining** (~15-30 min)
+
 ```bash
 # Teaches conversation format
 # 100 optimization steps
@@ -55,6 +58,7 @@ The script executes all training phases sequentially:
 ```
 
 **Phase 4: Supervised Finetuning** (~15-30 min)
+
 ```bash
 # Improves instruction-following
 # 100 optimization steps
@@ -62,6 +66,7 @@ The script executes all training phases sequentially:
 ```
 
 **Phase 5: Report Generation** (~1 min)
+
 ```bash
 # Compiles all metrics
 # Generates report.md
@@ -90,17 +95,20 @@ step 2/50 | loss: 3.234 | time: 11.8s
 ### After Training Completes
 
 **View Results:**
+
 ```bash
 cat report.md
 ```
 
 **Chat with Model:**
+
 ```bash
 source .venv/bin/activate
 python -m scripts.chat_cli
 ```
 
 **Web Interface:**
+
 ```bash
 source .venv/bin/activate
 python -m scripts.chat_web
@@ -112,23 +120,27 @@ python -m scripts.chat_web
 Edit `scripts/local_cpu_train.sh` to modify:
 
 **Model Size:**
+
 ```bash
 --depth=6              # More layers (default: 4)
 --width=512            # Larger model dimension (default: 256)
 ```
 
 **Training Duration:**
+
 ```bash
 --num_iterations=100   # More steps (default: 50 for base)
 ```
 
 **Data Amount:**
+
 ```bash
 # In the download section, change:
 python -m nanochat.dataset -n 8  # Download 8 shards instead of 4
 ```
 
 **Context Length:**
+
 ```bash
 --max_seq_len=2048     # Longer context (default: 1024)
 ```
@@ -136,6 +148,7 @@ python -m nanochat.dataset -n 8  # Download 8 shards instead of 4
 ### Stopping Training
 
 If you need to stop:
+
 - Press `Ctrl+C` to interrupt
 - Training will stop at the current phase
 - Partial checkpoints are saved
@@ -149,6 +162,7 @@ To resume, you'd need to modify the script to skip completed phases.
 ### Critical Pre-Flight Check
 
 Before submitting, ensure:
+
 - ✅ On any Ptolemy login node (not devel, not compute)
 - ✅ All data downloaded (ran `scripts/download_data.sh` on devel node)
 - ✅ Environment set up (ran `scripts/setup_environment.sh`)
@@ -166,6 +180,7 @@ WANDB_RUN=my_training_run sbatch scripts/speedrun.slurm
 ```
 
 **Alternative with explicit email:**
+
 ```bash
 WANDB_RUN=my_run sbatch --mail-user=your_email@msstate.edu scripts/speedrun.slurm
 ```
@@ -173,11 +188,13 @@ WANDB_RUN=my_run sbatch --mail-user=your_email@msstate.edu scripts/speedrun.slur
 ### WANDB_RUN Explained
 
 **Why it matters:**
+
 - Controls whether midtraining and SFT actually run
 - If not set or set to "dummy", those phases are **SKIPPED**
 - Chat functionality won't work without them
 
 **Correct usage:**
+
 ```bash
 # ✅ CORRECT - Any non-"dummy" name works
 WANDB_RUN=ptolemy_run_1 sbatch scripts/speedrun.slurm
@@ -186,6 +203,7 @@ WANDB_RUN=test_run sbatch scripts/speedrun.slurm
 ```
 
 **Incorrect usage:**
+
 ```bash
 # ❌ WRONG - Job will fail immediately
 sbatch scripts/speedrun.slurm
@@ -199,21 +217,25 @@ WANDB_RUN=dummy sbatch scripts/speedrun.slurm
 ### Job Submitted - What Happens Next
 
 **Immediate:**
+
 ```
 Submitted batch job 12345
 ```
 
 **SLURM validates:**
+
 1. WANDB_RUN is set correctly ✅
 2. All required data exists ✅
 3. Virtual environment exists ✅
 
 **If validation fails:**
+
 - Job terminates immediately
 - Clear error message in log
 - Fix issue and resubmit
 
 **If validation passes:**
+
 - Job enters queue (may wait)
 - Requests 8xA100 GPUs
 - Begins training when resources available
@@ -221,11 +243,13 @@ Submitted batch job 12345
 ### Monitoring Your Job
 
 **Check job status:**
+
 ```bash
 squeue -u $USER
 ```
 
 Output:
+
 ```
 JOBID PARTITION     NAME     USER ST       TIME  NODES NODELIST(REASON)
 12345  gpu-a100 nanochat  yourid  PD       0:00      1 (Priority)
@@ -233,11 +257,13 @@ JOBID PARTITION     NAME     USER ST       TIME  NODES NODELIST(REASON)
 ```
 
 Status codes:
+
 - `PD` = Pending (waiting in queue)
 - `R` = Running
 - No output = Completed (check logs)
 
 **Watch training live:**
+
 ```bash
 # Get job ID from squeue
 JOBID=12345
@@ -249,6 +275,7 @@ tail -f /scratch/ptolemy/users/$USER/slurm-nanochat/logs/nanochat_speedrun_${JOB
 Press `Ctrl+C` to stop watching (job keeps running).
 
 **Check for errors:**
+
 ```bash
 tail -f /scratch/ptolemy/users/$USER/slurm-nanochat/logs/nanochat_speedrun_${JOBID}.err
 ```
@@ -274,6 +301,7 @@ tail -f /scratch/ptolemy/users/$USER/slurm-nanochat/logs/nanochat_speedrun_${JOB
 ### Email Notifications
 
 You'll receive emails at:
+
 - **BEGIN** - Job started on compute node
 - **END** - Job completed successfully
 - **FAIL** - Job failed (check error log)
@@ -281,12 +309,14 @@ You'll receive emails at:
 ### After Job Completes
 
 **View results:**
+
 ```bash
 cd /scratch/ptolemy/users/$USER/slurm-nanochat
 cat report.md
 ```
 
 **Download to local machine:**
+
 ```bash
 # From your local computer
 scp <username>@ptolemy-login.arc.msstate.edu:/scratch/ptolemy/users/$USER/slurm-nanochat/report.md .
@@ -300,7 +330,7 @@ If you need to stop training:
 # Find job ID
 squeue -u $USER
 
-# Cancel it
+# Cancel it or kill it
 scancel 12345
 ```
 
@@ -339,6 +369,7 @@ This is risky - if SSH disconnects, training stops!
 ### What the Script Does
 
 The `speedrun.sh` script:
+
 1. Creates Python virtual environment
 2. Installs all dependencies
 3. Downloads 240 data shards (~24GB, ~30-60 min)
@@ -353,6 +384,7 @@ The `speedrun.sh` script:
 ### Monitoring Progress
 
 **If using screen:**
+
 ```bash
 # Reattach to session
 screen -r speedrun
@@ -362,11 +394,13 @@ tail -f speedrun.log
 ```
 
 **Check GPU usage:**
+
 ```bash
 watch -n 1 nvidia-smi
 ```
 
 **Check progress in log:**
+
 ```bash
 grep "step.*loss" speedrun.log | tail -20
 ```
@@ -387,23 +421,27 @@ grep "step.*loss" speedrun.log | tail -20
 ### After Training Completes
 
 **View results:**
+
 ```bash
 cat report.md
 ```
 
 **Chat via CLI:**
+
 ```bash
 source .venv/bin/activate
 python -m scripts.chat_cli
 ```
 
 **Serve web interface:**
+
 ```bash
 source .venv/bin/activate
 python -m scripts.chat_web
 ```
 
 Then access via public IP:
+
 ```
 http://<instance-public-ip>:8000
 ```
@@ -411,6 +449,7 @@ http://<instance-public-ip>:8000
 ### Stopping Training
 
 **Graceful stop:**
+
 ```bash
 # If using screen, reattach
 screen -r speedrun
@@ -419,6 +458,7 @@ screen -r speedrun
 ```
 
 **Force kill:**
+
 ```bash
 pkill -f base_train.py
 ```
@@ -428,11 +468,13 @@ pkill -f base_train.py
 ### Cost Management
 
 **Monitor costs:**
+
 - Training time: ~4 hours
 - Cost: 8 GPUs × $3/hour × 4 hours = ~$96
 - **Terminate instance immediately after training!**
 
 **Download results before terminating:**
+
 ```bash
 # From local machine
 scp ubuntu@<instance-ip>:~/nanochat/report.md .
@@ -443,15 +485,15 @@ scp -r ubuntu@<instance-ip>:~/.cache/nanochat/models/ ./models/
 
 ## Comparison Table
 
-| Aspect | Local CPU | Ptolemy HPC | Production GPU |
-|--------|-----------|-------------|----------------|
-| **Command** | `bash scripts/local_cpu_train.sh` | `WANDB_RUN=X sbatch scripts/speedrun.slurm` | `bash speedrun.sh` |
-| **Monitoring** | Terminal output | `tail -f logs/*.out` | `tail -f speedrun.log` |
-| **Duration** | 1-3 hours | ~12 hours | ~4 hours |
-| **Can Disconnect?** | No (terminal) | Yes (SLURM job) | Yes (with screen) |
-| **Cost** | Free | Free | ~$100 |
-| **Queue Time** | None | Variable | None |
-| **Stop/Resume** | Manual | Cancel/resubmit | Manual |
+| Aspect              | Local CPU                         | Ptolemy HPC                                 | Production GPU         |
+| ------------------- | --------------------------------- | ------------------------------------------- | ---------------------- |
+| **Command**         | `bash scripts/local_cpu_train.sh` | `WANDB_RUN=X sbatch scripts/speedrun.slurm` | `bash speedrun.sh`     |
+| **Monitoring**      | Terminal output                   | `tail -f logs/*.out`                        | `tail -f speedrun.log` |
+| **Duration**        | 1-3 hours                         | ~12 hours                                   | ~4 hours               |
+| **Can Disconnect?** | No (terminal)                     | Yes (SLURM job)                             | Yes (with screen)      |
+| **Cost**            | Free                              | Free                                        | ~$100                  |
+| **Queue Time**      | None                              | Variable                                    | None                   |
+| **Stop/Resume**     | Manual                            | Cancel/resubmit                             | Manual                 |
 
 ---
 
@@ -503,6 +545,7 @@ watch -n 5 nvidia-smi
 ### Job Fails Immediately
 
 **Ptolemy:**
+
 ```bash
 # Check error log
 cat logs/nanochat_speedrun_*.err
@@ -516,6 +559,7 @@ cat logs/nanochat_speedrun_*.err
 ### Training Runs But Model is Bad
 
 **Check report.md:**
+
 - CORE score should be > 0.15 (local CPU) or > 0.20 (GPU)
 - If much lower, training may have failed silently
 - Check logs for errors
@@ -523,6 +567,7 @@ cat logs/nanochat_speedrun_*.err
 ### Out of Memory (OOM)
 
 **Reduce batch size:**
+
 ```bash
 # Edit the training script
 --device_batch_size=16  # Instead of 32
@@ -531,10 +576,12 @@ cat logs/nanochat_speedrun_*.err
 ### Training Too Slow
 
 **Local CPU:**
+
 - Expected! CPU is ~30x slower than GPU
 - Reduce model size or iterations
 
 **Ptolemy/Production:**
+
 - Check GPU utilization: `nvidia-smi`
 - Should be near 100% during training
 

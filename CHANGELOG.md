@@ -8,12 +8,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### WandB Offline Mode Fix (2025-11-01)
+- **CRITICAL**: Fixed WandB authentication error on GPU nodes
+  - Added `WANDB_MODE=offline` to `scripts/speedrun.slurm`
+  - Added `WANDB_DIR` to store logs in persistent location
+  - GPU nodes can now run training without internet/authentication
+  - Metrics are logged locally and can be synced later (optional)
+
 ### Documentation Reorganization (2025-11-01)
 - Restructured all documentation following Diátaxis framework
 - Created `docs/` directory with tutorials, how-to, explanation, and reference sections
 - Moved session logs to `experiments/` directory
 - Created comprehensive navigation via `docs/index.md`
 - Consolidated redundant documentation across platforms
+- Updated troubleshooting guide with WandB offline mode information
+- Updated setup guide with WandB configuration details
 
 ---
 
