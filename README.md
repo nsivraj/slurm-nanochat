@@ -10,27 +10,40 @@ This repo is a full-stack implementation of an LLM like ChatGPT in a single, cle
 
 To get a sense of the endpoint of this repo, you can currently find [nanochat d32](https://github.com/karpathy/nanochat/discussions/8) hosted on [nanochat.karpathy.ai](https://nanochat.karpathy.ai/). "d32" means that this model has 32 layers in the Transformer neural network. This model has 1.9 billion parameters, it was trained on 38 billion tokens by simply running the single script [run1000.sh](run1000.sh), and the total cost of training was ~$800 (about 33 hours training time on 8XH100 GPU node). While today this is enough to outperform GPT-2 of 2019, it falls dramatically short of modern Large Language Models like GPT-5. When talking to these micro models, you'll see that they make a lot of mistakes, they are a little bit naive and silly and they hallucinate a ton, a bit like children. It's kind of amusing. But what makes nanochat unique is that it is fully yours - fully configurable, tweakable, hackable, and trained by you from start to end. To train and talk to your own, we turn to...
 
-## Quick start
+## Quick Start
 
-The fastest way to feel the magic is to run the speedrun script [speedrun.sh](speedrun.sh), which trains and inferences the $100 tier of nanochat. On an 8XH100 node at $24/hr, this gives a total run time of about 4 hours. Boot up a new 8XH100 GPU box from your favorite provider (e.g. I use and like [Lambda](https://lambda.ai/service/gpu-cloud)), and kick off the training script:
+nanochat supports three training environments:
 
+### 🎓 **MSU Students (Ptolemy HPC)** - Free GPU training on class cluster
 ```bash
-bash speedrun.sh
+# Step 1: Download data (on ptolemy-devel-1)
+bash scripts/download_data.sh
+
+# Step 2: Submit training job
+WANDB_RUN=my_run sbatch scripts/speedrun.slurm
 ```
+→ [Complete HPC Tutorial](docs/tutorials/02-hpc-first-job.md)
 
-Alternatively, since the script runs for 4 hours, I like to launch it like this inside a new screen session `speedrun` (and also log output to `speedrun.log`):
+### 💻 **Local CPU** - Try nanochat on your laptop (1-3 hours)
+```bash
+bash scripts/local_cpu_train.sh
+```
+→ [Local CPU Tutorial](docs/tutorials/01-local-cpu-quickstart.md)
 
+### ☁️ **Production GPU** - Train on cloud (8xH100, ~4 hours, ~$100)
 ```bash
 screen -L -Logfile speedrun.log -S speedrun bash speedrun.sh
 ```
 
-See the [screen cheatsheet](https://gist.github.com/jctosta/af918e1618682638aa82) if you are less familiar. You can watch it go inside the screen session, or detach with `Ctrl-a d` and `tail speedrun.log` to view progress. Now wait 4 hours. Once it's done, you can talk to your LLM via the ChatGPT-like web UI. Make sure again that your local uv virtual environment is active (run `source .venv/bin/activate`), and serve it:
+See the [screen cheatsheet](https://gist.github.com/jctosta/af918e1618682638aa82) if you are less familiar. Detach with `Ctrl-a d` and monitor with `tail speedrun.log`. Once done, talk to your LLM:
 
 ```bash
 python -m scripts.chat_web
 ```
 
-And then visit the URL shown. Make sure to access it correctly, e.g. on Lambda use the public IP of the node you're on, followed by the port, so for example [http://209.20.xxx.xxx:8000/](http://209.20.xxx.xxx:8000/), etc. Then talk to your LLM as you'd normally talk to ChatGPT! Get it to write stories or poems. Ask it to tell you who you are to see a hallucination. Ask it why the sky is blue. Or why it's green. The speedrun is a 4e19 FLOPs capability model so it's a bit like talking to a kindergartener :).
+Visit the URL shown (e.g., http://209.20.xxx.xxx:8000/). The speedrun is a 4e19 FLOPs model - like talking to a kindergartener :).
+
+📚 **[Complete Documentation](docs/index.md)** - Setup guides, how-tos, troubleshooting, and architecture details.
 
 ---
 
@@ -95,7 +108,7 @@ And a bit more about computing environments that will run nanochat:
 
 ## Running on CPU / MPS
 
-nanochat can be run on CPU or on MPS (if you're on Macbook), and will automatically try to detect what device is best to run on. You're not going to get too far without GPUs, but at least you'll be able to run the code paths and maybe train a tiny LLM with some patience. For an example of how to make all the run commands much smaller (feel free to tune!), you can refer to [dev/runcpu.sh](dev/runcpu.sh) file. You'll see that I'm essentially restricting all scripts to train smaller models, to run for shorter number of iterations, etc. This functionality is new, slightly gnarly (touched a lot of code), and was merged in this [CPU|MPS PR](https://github.com/karpathy/nanochat/pull/88) on Oct 21, 2025.
+nanochat can be run on CPU or on MPS (if you're on Macbook), and will automatically try to detect what device is best to run on. You're not going to get too far without GPUs, but at least you'll be able to run the code paths and maybe train a tiny LLM with some patience. Use the [Local CPU Tutorial](docs/tutorials/01-local-cpu-quickstart.md) for step-by-step guidance, or refer to [dev/runcpu.sh](dev/runcpu.sh) for an example configuration. This functionality was merged in the [CPU|MPS PR](https://github.com/karpathy/nanochat/pull/88) on Oct 21, 2025.
 
 ## Customization
 
