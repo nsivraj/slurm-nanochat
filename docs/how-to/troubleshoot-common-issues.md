@@ -155,7 +155,50 @@ WANDB_RUN=test_run_1 sbatch scripts/speedrun.slurm
 
 **Note:** You do NOT need a wandb account!
 
-### 3. Data Not Downloaded
+### 3. WandB API Key Error (FIXED)
+
+**Error message:**
+```
+wandb.errors.errors.UsageError: api_key not configured (no-tty).
+call wandb.login(key=[your_api_key])
+```
+
+**Status:** ✅ This issue has been FIXED in the latest version of `scripts/speedrun.slurm`
+
+**What was the problem:**
+GPU nodes have no internet access, so WandB couldn't authenticate when `WANDB_RUN` was set to a non-"dummy" value.
+
+**How it was fixed:**
+The SLURM script now automatically configures WandB to run in **offline mode**:
+```bash
+export WANDB_MODE=offline
+export WANDB_DIR="$NANOCHAT_BASE_DIR/wandb"
+```
+
+**What this means for you:**
+- ✅ Training will work without WandB authentication
+- ✅ Metrics are still logged locally in `/scratch/ptolemy/users/$USER/nanochat-cache/wandb/`
+- ✅ You can sync logs to WandB later (optional)
+
+**How to sync logs after training (optional):**
+```bash
+# 1. SSH to a devel node (has internet)
+ssh ptolemy-devel-1.arc.msstate.edu
+
+# 2. Activate your environment
+source /scratch/ptolemy/users/$USER/nanochat-venv/bin/activate
+
+# 3. Login to WandB (one-time setup)
+wandb login
+
+# 4. Sync all offline runs
+wandb sync /scratch/ptolemy/users/$USER/nanochat-cache/wandb/
+```
+
+**If you still see this error:**
+Make sure you're using the latest version of `scripts/speedrun.slurm`. The fix was added on 2025-11-01.
+
+### 4. Data Not Downloaded
 
 **Error message:**
 ```

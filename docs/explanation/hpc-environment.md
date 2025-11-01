@@ -21,6 +21,7 @@ This is a standard HPC security practice, but it requires a modified workflow.
 ### Why This Design?
 
 **HPC Security Model:**
+
 - Compute nodes are isolated from internet for security
 - Only development/login nodes have internet access
 - Prevents compromised jobs from exfiltrating data
@@ -29,6 +30,7 @@ This is a standard HPC security practice, but it requires a modified workflow.
 ### Two-Phase Workflow Required
 
 #### Phase 1: Data Download (on devel node, ~30-60 min)
+
 ```bash
 # SSH to devel node (has internet)
 ssh <username>@ptolemy-devel-1.arc.msstate.edu
@@ -39,6 +41,7 @@ bash scripts/download_data.sh
 ```
 
 Downloads:
+
 - 240 dataset shards (~24GB)
 - Evaluation bundle (~162MB)
 - Identity conversations (~2.3MB)
@@ -46,6 +49,7 @@ Downloads:
 - SmolTalk dataset
 
 #### Phase 2: Training (on GPU nodes, ~12 hours)
+
 ```bash
 # Submit from any login node
 cd /scratch/ptolemy/users/$USER/slurm-nanochat
@@ -53,6 +57,7 @@ WANDB_RUN=my_run sbatch scripts/speedrun.slurm
 ```
 
 The job:
+
 - Verifies all data exists (fails fast if not)
 - Runs training with pre-downloaded data only
 - No network operations during training
@@ -60,6 +65,7 @@ The job:
 ### What Happens if You Skip Phase 1?
 
 The job fails immediately with:
+
 ```
 ❌ ERROR: Required data not found!
 
@@ -78,6 +84,7 @@ All data must be downloaded BEFORE submitting this job.
 **Purpose:** Setup, data download, development
 
 **Features:**
+
 - ✅ Internet access
 - ✅ SSH access
 - ✅ Python 3.12.5 available
@@ -85,6 +92,7 @@ All data must be downloaded BEFORE submitting this job.
 - ❌ No GPUs
 
 **Use for:**
+
 - Running `setup_environment.sh`
 - Running `download_data.sh`
 - Installing dependencies
@@ -95,6 +103,7 @@ All data must be downloaded BEFORE submitting this job.
 **Purpose:** Job submission, file management
 
 **Features:**
+
 - ✅ SSH access
 - ✅ SLURM commands
 - ✅ Access to scratch storage
@@ -103,6 +112,7 @@ All data must be downloaded BEFORE submitting this job.
 - ❌ Not for compute tasks
 
 **Use for:**
+
 - Submitting SLURM jobs
 - Checking job status
 - Managing files
@@ -113,6 +123,7 @@ All data must be downloaded BEFORE submitting this job.
 **Purpose:** Training, inference
 
 **Features:**
+
 - ✅ 8x A100 80GB GPUs
 - ✅ High CPU count
 - ✅ Large RAM
@@ -120,6 +131,7 @@ All data must be downloaded BEFORE submitting this job.
 - ❌ No direct SSH (via SLURM only)
 
 **Access via:**
+
 - SLURM batch jobs (`sbatch`)
 - Interactive jobs (`srun`)
 
@@ -130,6 +142,7 @@ All data must be downloaded BEFORE submitting this job.
 ### Critical: Use /scratch, NOT Home Directory
 
 **Why /scratch?**
+
 - Large quotas (~5TB vs ~5GB)
 - No backups (saves space)
 - Faster I/O
@@ -159,6 +172,7 @@ All data must be downloaded BEFORE submitting this job.
 ### Home Directory
 
 Keep minimal in `~`:
+
 - `.env.local` (config file)
 - `.bashrc` (shell config)
 - SSH keys
@@ -169,6 +183,7 @@ Keep minimal in `~`:
 ### Environment Variables Set
 
 All scripts configure:
+
 ```bash
 NANOCHAT_BASE_DIR=/scratch/ptolemy/users/$USER/nanochat-cache
 HF_HOME=/scratch/ptolemy/users/$USER/cache/huggingface
@@ -182,6 +197,7 @@ PIP_CACHE_DIR=/scratch/ptolemy/users/$USER/cache/pip
 ### Verification
 
 Check storage usage:
+
 ```bash
 # Scratch usage (should be ~35-50GB)
 du -sh /scratch/ptolemy/users/$USER/
@@ -212,6 +228,7 @@ quota -s
 ### QOS Limits
 
 **class-cse8990 QOS:**
+
 - Maximum time: 12 hours
 - Maximum nodes: 1
 - GPUs: A100 80GB
@@ -239,6 +256,7 @@ Total:             ~10-12 hours
 **System Python:** 3.9.14 (too old!)
 
 **Module Python:** 3.12.5 ✅
+
 ```bash
 module load python/3.12.5
 ```
@@ -248,6 +266,7 @@ All scripts automatically load Python 3.12.5.
 ### Virtual Environment Location
 
 **Created in scratch:**
+
 ```bash
 /scratch/ptolemy/users/$USER/nanochat-venv/
 ```
@@ -257,11 +276,13 @@ All scripts automatically load Python 3.12.5.
 ### Dependencies
 
 Installed via:
+
 ```bash
 pip install -e '.[gpu]'
 ```
 
 Includes:
+
 - PyTorch with CUDA support
 - All nanochat requirements
 - GPU-specific packages
@@ -273,6 +294,7 @@ Includes:
 ### Configuration
 
 Set in `.env.local`:
+
 ```bash
 EMAIL=your_email@msstate.edu
 ```
@@ -286,6 +308,7 @@ EMAIL=your_email@msstate.edu
 ### Email Contents
 
 Includes:
+
 - Job ID
 - Node name
 - Exit status
@@ -365,21 +388,26 @@ python -m scripts.chat_cli
 ## Unique Ptolemy Constraints
 
 ### 1. No Internet on GPU Nodes
+
 **Solution:** Two-phase workflow (download → train)
 
 ### 2. Limited Time (12 hours max)
+
 **Impact:** Training must complete within limit
 **Mitigation:** A100 training usually finishes in ~10-12 hours
 
 ### 3. Shared Resource Allocation
+
 **Impact:** Queue times vary
 **Mitigation:** Submit jobs during off-peak hours
 
 ### 4. Storage Quotas
+
 **Impact:** Must use /scratch, not home
 **Mitigation:** All scripts configured for /scratch
 
 ### 5. Module System
+
 **Impact:** Need to load Python 3.12.5
 **Mitigation:** Scripts automatically load modules
 
@@ -387,15 +415,15 @@ python -m scripts.chat_cli
 
 ## Comparison with Other Environments
 
-| Feature | Ptolemy HPC | Production GPU | Local CPU |
-|---------|-------------|----------------|-----------|
-| **Internet** | Devel only | ✅ Yes | ✅ Yes |
-| **Setup Complexity** | High | Medium | Low |
-| **Job Submission** | SLURM | Direct | Direct |
-| **Time Limit** | 12 hours | None | None |
-| **Storage** | /scratch required | Any | Any |
-| **Queue Time** | Variable | None | None |
-| **Cost** | Free | ~$100 | Free |
+| Feature              | Ptolemy HPC       | Production GPU | Local CPU |
+| -------------------- | ----------------- | -------------- | --------- |
+| **Internet**         | Devel only        | ✅ Yes         | ✅ Yes    |
+| **Setup Complexity** | High              | Medium         | Low       |
+| **Job Submission**   | SLURM             | Direct         | Direct    |
+| **Time Limit**       | 12 hours          | None           | None      |
+| **Storage**          | /scratch required | Any            | Any       |
+| **Queue Time**       | Variable          | None           | None      |
+| **Cost**             | Free              | ~$100          | Free      |
 
 ---
 
@@ -452,7 +480,7 @@ WANDB_RUN=name sbatch scripts/speedrun.slurm
 # Check status
 squeue -u $USER
 
-# Cancel job
+# Cancel job or kill job
 scancel <JOBID>
 
 # Interactive session

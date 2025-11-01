@@ -225,6 +225,7 @@ This downloads:
     ├── tokenizer/               # Tokenizer
     ├── models/                  # Checkpoints
     ├── eval_bundle/             # Eval data
+    ├── wandb/                   # WandB offline logs
     └── report/                  # Reports
 ```
 
@@ -233,8 +234,14 @@ This downloads:
 **WANDB_RUN Requirement:**
 - You **MUST** set `WANDB_RUN` when submitting jobs
 - Any non-"dummy" name works (e.g., `my_run`, `test_1`)
-- No wandb account needed
+- No wandb account needed - runs in **offline mode** automatically
 - Without this, midtraining and SFT are **SKIPPED**
+
+**WandB Offline Mode (Automatic):**
+- GPU nodes have no internet, so WandB runs in offline mode
+- Metrics are logged locally to `/scratch/ptolemy/users/$USER/nanochat-cache/wandb/`
+- You can optionally sync logs to WandB later from a devel node
+- No authentication or API key needed during training
 
 **Internet Access:**
 - Development nodes (devel-1, devel-2): ✅ Has internet
