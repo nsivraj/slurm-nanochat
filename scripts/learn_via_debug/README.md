@@ -27,8 +27,18 @@ Traces the execution of key GPT components during training:
 **Components traced:**
 1. **Token embeddings (wte)** - How discrete tokens become continuous vectors
 2. **Positional embeddings (RoPE)** - How position information is encoded via rotation
-3. **Transformer Block stack** - Attention + MLP layers with residual connections
-4. **RMSNorm** - Normalization without learnable parameters
+3. **Transformer Block stack** - Detailed pre-norm residual architecture:
+   - **Part 1**: Pre-norm (RMSNorm) + **CausalSelfAttention** + Residual
+     - Input/Output shape: [batch, seq_len, d_model] → [batch, seq_len, d_model]
+     - Q, K, V projections with Multi-Query Attention (MQA) support
+     - RoPE application to Q and K (not V)
+     - QK normalization for training stability
+     - Scaled dot-product attention with causal masking
+     - Softmax and weighted sum over values
+     - Head concatenation and output projection
+   - **Part 2**: Pre-norm (RMSNorm) + MLP + Residual
+   - Shows each step: normalization, projections, activations, residual additions
+4. **RMSNorm** - Normalization without learnable parameters (shown before each operation)
 5. **Language modeling head** - Final projection to vocabulary
 6. **Model scaling** - Parameter breakdown and 561M target configuration
 
@@ -64,12 +74,24 @@ The script provides detailed output showing:
 - Input token shapes and statistics
 - Token embedding transformation
 - RoPE (Rotary Position Embeddings) computation
-- For each transformer block:
-  - Input/output tensors
-  - Q, K, V projections
-  - RoPE application to Q and K
-  - QK normalization
-  - Attention outputs
+- For each transformer block (detailed trace for first 3 and last):
+  - **Pre-norm architecture explanation**
+  - **Part 1: CausalSelfAttention path**
+    - Step 1a: RMSNorm before attention
+    - Step 1b: **Detailed attention breakdown**:
+      - [1b.i] Q, K, V projections (shows MQA if n_kv_head < n_head)
+      - [1b.ii] RoPE application (Q before/after, K after, explains relative position)
+      - [1b.iii] QK normalization (separate RMSNorm for Q and K)
+      - [1b.iv] Transpose for multi-head (B,T,H,D → B,H,T,D)
+      - [1b.v] Scaled dot-product attention (shows causal mask visualization for small T)
+      - [1b.vi] Concatenate heads and output projection
+    - Step 1c: Residual connection (x + attention output)
+  - **Part 2: MLP path**
+    - Step 2a: RMSNorm before MLP
+    - Step 2b.i: MLP fc projection (expand to 4x dimension)
+    - Step 2b.ii: ReLU² activation
+    - Step 2b.iii: MLP output projection (back to model dimension)
+    - Step 2c: Residual connection (x + MLP output)
 - Final RMSNorm before LM head
 - Logit computation and softcapping
 - Loss computation

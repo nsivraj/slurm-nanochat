@@ -13,14 +13,13 @@ python -m scripts.learn_via_debug.debug_gpt_components --depth=20 --device_batch
 """
 
 import os
-import sys
 import torch
 import torch.nn.functional as F
 from contextlib import nullcontext
 
 from nanochat.gpt import GPT, GPTConfig, norm, apply_rotary_emb
 from nanochat.dataloader import tokenizing_distributed_data_loader
-from nanochat.common import compute_init, compute_cleanup, print0, autodetect_device_type
+from nanochat.common import compute_init, compute_cleanup, print0
 from nanochat.tokenizer import get_tokenizer
 
 # Color codes for terminal output
@@ -132,52 +131,204 @@ class InstrumentedGPT(GPT):
             print(f"{Colors.BLUE}Each block contains: Attention + MLP with residual connections{Colors.END}\n")
 
         for layer_idx, block in enumerate(self.transformer.h):
-            x_before = x.clone() if self.verbose else None
-
-            # Each block does: x = x + attn(norm(x)) and x = x + mlp(norm(x))
-            x = block(x, cos_sin, kv_cache)
+            x_before_block = x.clone() if self.verbose else None
 
             if self.verbose:
                 print(f"{Colors.BOLD}--- Block {layer_idx}/{self.config.n_layer-1} ---{Colors.END}")
+                print(f"{Colors.BLUE}PRE-NORM RESIDUAL ARCHITECTURE:{Colors.END}")
+                print(f"{Colors.BLUE}  1. Pre-norm (RMSNorm) + Attention + Residual{Colors.END}")
+                print(f"{Colors.BLUE}  2. Pre-norm (RMSNorm) + MLP + Residual{Colors.END}\n")
 
                 # Show attention details for first few blocks
                 if layer_idx < 3 or layer_idx == self.config.n_layer - 1:
-                    print_component(f"  Input to Block {layer_idx}", x_before)
+                    print_component(f"  Input to Block {layer_idx}", x_before_block,
+                                  "Input from previous layer (or token embeddings if layer 0)")
 
-                    # Manually trace through attention for visibility
-                    x_norm = norm(x_before)
-                    print_component(f"  After RMSNorm (pre-attn)", x_norm, "Normalized for attention")
+                    # ===================================================================
+                    # PART 1: Pre-norm + Attention + Residual
+                    # ===================================================================
+                    print(f"\n{Colors.CYAN}  {Colors.BOLD}PART 1: Pre-norm + Attention + Residual{Colors.END}")
+                    print(f"{Colors.YELLOW}  Formula: x = x + Attention(RMSNorm(x)){Colors.END}\n")
 
-                    # Attention projections
-                    q = block.attn.c_q(x_norm).view(B, T, block.attn.n_head, block.attn.head_dim)
-                    k = block.attn.c_k(x_norm).view(B, T, block.attn.n_kv_head, block.attn.head_dim)
-                    v = block.attn.c_v(x_norm).view(B, T, block.attn.n_kv_head, block.attn.head_dim)
+                    # Step 1a: Pre-norm (RMSNorm before attention)
+                    x_norm_attn = norm(x_before_block)
+                    print_component(f"  Step 1a: RMSNorm(x) [pre-attention]", x_norm_attn,
+                                  "Normalize BEFORE attention (pre-norm architecture)")
 
-                    print_component(f"  Queries (Q)", q,
-                                  f"n_head={block.attn.n_head}, head_dim={block.attn.head_dim}")
-                    print_component(f"  Keys (K)", k,
-                                  f"n_kv_head={block.attn.n_kv_head} (MQA/GQA)")
-                    print_component(f"  Values (V)", v)
+                    # ===================================================================
+                    # Step 1b: CAUSAL SELF-ATTENTION (detailed breakdown)
+                    # ===================================================================
+                    print(f"\n{Colors.CYAN}  {Colors.BOLD}Step 1b: CAUSAL SELF-ATTENTION{Colors.END}")
+                    print(f"{Colors.BLUE}  Input/Output: [batch={B}, seq_len={T}, d_model={self.config.n_embd}] → [batch={B}, seq_len={T}, d_model={self.config.n_embd}]{Colors.END}")
+                    print(f"{Colors.BLUE}  Architecture: Project to Q,K,V → RoPE → QK Norm → Scaled Dot-Product → Causal Mask → Softmax{Colors.END}\n")
 
-                    # Apply RoPE to Q and K
+                    # Step 1b.i: Q, K, V Projections
+                    print(f"{Colors.YELLOW}  [1b.i] Project to Queries, Keys, Values{Colors.END}")
+                    q = block.attn.c_q(x_norm_attn).view(B, T, block.attn.n_head, block.attn.head_dim)
+                    k = block.attn.c_k(x_norm_attn).view(B, T, block.attn.n_kv_head, block.attn.head_dim)
+                    v = block.attn.c_v(x_norm_attn).view(B, T, block.attn.n_kv_head, block.attn.head_dim)
+
+                    print_component(f"    Queries (Q)", q,
+                                  f"Shape: [B={B}, T={T}, n_head={block.attn.n_head}, head_dim={block.attn.head_dim}]")
+                    print_component(f"    Keys (K)", k,
+                                  f"Shape: [B={B}, T={T}, n_kv_head={block.attn.n_kv_head}, head_dim={block.attn.head_dim}]")
+                    print_component(f"    Values (V)", v,
+                                  f"Shape: [B={B}, T={T}, n_kv_head={block.attn.n_kv_head}, head_dim={block.attn.head_dim}]")
+
+                    # Multi-Query Attention explanation
+                    if block.attn.n_kv_head < block.attn.n_head:
+                        print(f"{Colors.YELLOW}    ⚡ Multi-Query Attention (MQA) enabled:{Colors.END}")
+                        print(f"{Colors.YELLOW}       n_head={block.attn.n_head}, n_kv_head={block.attn.n_kv_head}{Colors.END}")
+                        print(f"{Colors.YELLOW}       Ratio: {block.attn.n_head // block.attn.n_kv_head}:1 (query heads : kv heads){Colors.END}")
+                        print(f"{Colors.YELLOW}       Benefit: Reduces KV cache size for faster inference{Colors.END}\n")
+                    else:
+                        print(f"{Colors.YELLOW}    Standard attention: n_head == n_kv_head = {block.attn.n_head}{Colors.END}\n")
+
+                    # Step 1b.ii: RoPE (Rotary Position Embeddings)
+                    print(f"{Colors.YELLOW}  [1b.ii] Apply RoPE (Rotary Position Embeddings){Colors.END}")
+                    print(f"{Colors.BLUE}    RoPE encodes position via rotation (no learned parameters){Colors.END}")
+                    print(f"{Colors.BLUE}    Formula: rotate(x, θ) where θ depends on position{Colors.END}")
+                    print(f"{Colors.BLUE}    Applied to Q and K only (not V){Colors.END}\n")
+
+                    q_before_rope = q.clone()
+                    k_before_rope = k.clone()
+
                     q_rope = apply_rotary_emb(q, cos, sin)
                     k_rope = apply_rotary_emb(k, cos, sin)
 
-                    print_component(f"  Queries (after RoPE)", q_rope, "Position info encoded via rotation")
-                    print_component(f"  Keys (after RoPE)", k_rope)
+                    print_component(f"    Q before RoPE", q_before_rope,
+                                  "Original query vectors")
+                    print_component(f"    Q after RoPE", q_rope,
+                                  "Position-encoded query vectors via rotation")
+                    print_component(f"    K after RoPE", k_rope,
+                                  "Position-encoded key vectors via rotation")
 
-                    # QK norm
+                    print(f"{Colors.YELLOW}    Note: RoPE allows relative position encoding{Colors.END}")
+                    print(f"{Colors.YELLOW}    The dot product Q·K naturally captures relative distances{Colors.END}\n")
+
+                    # Step 1b.iii: QK Normalization
+                    print(f"{Colors.YELLOW}  [1b.iii] QK Normalization{Colors.END}")
+                    print(f"{Colors.BLUE}    Normalize Q and K separately for training stability{Colors.END}")
+                    print(f"{Colors.BLUE}    Uses RMSNorm (no learnable parameters){Colors.END}\n")
+
                     q_norm = norm(q_rope)
                     k_norm = norm(k_rope)
 
-                    print_component(f"  Queries (after QK norm)", q_norm, "Normalized Q for stability")
-                    print_component(f"  Keys (after QK norm)", k_norm)
+                    print_component(f"    Q after QK norm", q_norm,
+                                  "Normalized queries for stable training")
+                    print_component(f"    K after QK norm", k_norm,
+                                  "Normalized keys for stable training")
 
-                    print_component(f"  Output from Block {layer_idx}", x, "After attn + MLP with residuals")
+                    # Step 1b.iv: Prepare for attention (transpose heads)
+                    print(f"\n{Colors.YELLOW}  [1b.iv] Transpose for Multi-Head Attention{Colors.END}")
+                    print(f"{Colors.BLUE}    Reshape: [B, T, H, D] → [B, H, T, D]{Colors.END}")
+                    print(f"{Colors.BLUE}    Makes head dimension the batch dimension for parallel processing{Colors.END}\n")
+
+                    q_transposed = q_norm.transpose(1, 2)
+                    k_transposed = k_norm.transpose(1, 2)
+                    v_transposed = v.transpose(1, 2)
+
+                    print_component(f"    Q transposed", q_transposed,
+                                  f"Shape: [B={B}, H={block.attn.n_head}, T={T}, D={block.attn.head_dim}]")
+                    print_component(f"    K transposed", k_transposed,
+                                  f"Shape: [B={B}, H={block.attn.n_kv_head}, T={T}, D={block.attn.head_dim}]")
+                    print_component(f"    V transposed", v_transposed,
+                                  f"Shape: [B={B}, H={block.attn.n_kv_head}, T={T}, D={block.attn.head_dim}]")
+
+                    # Step 1b.v: Scaled Dot-Product Attention
+                    print(f"\n{Colors.YELLOW}  [1b.v] Scaled Dot-Product Attention with Causal Mask{Colors.END}")
+                    print(f"{Colors.BLUE}    Formula: Attention(Q,K,V) = softmax(Q·K^T / √d_k) · V{Colors.END}")
+                    print(f"{Colors.BLUE}    Causal mask ensures token i can only attend to tokens ≤ i{Colors.END}")
+                    print(f"{Colors.BLUE}    This maintains autoregressive property for language modeling{Colors.END}\n")
+
+                    # Show what the causal mask looks like for small sequences
+                    if T <= 8:
+                        print(f"{Colors.CYAN}    Causal Mask Visualization (for T={T}):{Colors.END}")
+                        causal_mask = torch.tril(torch.ones((T, T), dtype=torch.int))
+                        print(f"{Colors.GREEN}    {causal_mask.numpy()}{Colors.END}")
+                        print(f"{Colors.YELLOW}    1 = can attend, 0 = masked (cannot attend to future){Colors.END}\n")
+
+                    # Compute attention (this happens inside F.scaled_dot_product_attention)
+                    enable_gqa = block.attn.n_head != block.attn.n_kv_head
+                    if enable_gqa:
+                        print(f"{Colors.YELLOW}    Using Group Query Attention (GQA){Colors.END}")
+                        print(f"{Colors.YELLOW}    K,V heads will be duplicated to match Q heads{Colors.END}\n")
+
+                    attn_output_raw = F.scaled_dot_product_attention(
+                        q_transposed, k_transposed, v_transposed,
+                        is_causal=True,
+                        enable_gqa=enable_gqa
+                    )
+
+                    print_component(f"    Attention output (multi-head)", attn_output_raw,
+                                  f"Shape: [B={B}, H={block.attn.n_head}, T={T}, D={block.attn.head_dim}]")
+
+                    # Step 1b.vi: Concatenate heads and project
+                    print(f"\n{Colors.YELLOW}  [1b.vi] Concatenate Heads and Project{Colors.END}")
+                    print(f"{Colors.BLUE}    Reshape: [B, H, T, D] → [B, T, H*D] = [B, T, d_model]{Colors.END}")
+                    print(f"{Colors.BLUE}    Then apply output projection to residual stream{Colors.END}\n")
+
+                    attn_concat = attn_output_raw.transpose(1, 2).contiguous().view(B, T, -1)
+                    print_component(f"    Concatenated heads", attn_concat,
+                                  f"Shape: [B={B}, T={T}, d_model={self.config.n_embd}]")
+
+                    # Full attention output (with final projection)
+                    attn_output = block.attn(x_norm_attn, cos_sin, kv_cache)
+                    print_component(f"    Final attention output (after c_proj)", attn_output,
+                                  f"Shape: [B={B}, T={T}, d_model={self.config.n_embd}]")
+
+                    # Step 1c: Residual connection
+                    x_after_attn = x_before_block + attn_output
+                    print_component(f"  Step 1c: x + Attention(RMSNorm(x)) [RESIDUAL]",
+                                  x_after_attn,
+                                  "Add attention output to input (residual connection)")
+
+                    # ===================================================================
+                    # PART 2: Pre-norm + MLP + Residual
+                    # ===================================================================
+                    print(f"\n{Colors.CYAN}  {Colors.BOLD}PART 2: Pre-norm + MLP + Residual{Colors.END}")
+                    print(f"{Colors.YELLOW}  Formula: x = x + MLP(RMSNorm(x)){Colors.END}\n")
+
+                    # Step 2a: Pre-norm (RMSNorm before MLP)
+                    x_norm_mlp = norm(x_after_attn)
+                    print_component(f"  Step 2a: RMSNorm(x) [pre-MLP]", x_norm_mlp,
+                                  "Normalize BEFORE MLP (pre-norm architecture)")
+
+                    # Step 2b: MLP
+                    # MLP does: x = c_proj(relu(c_fc(x))^2)
+                    mlp_fc = block.mlp.c_fc(x_norm_mlp)
+                    print_component(f"  Step 2b.i: MLP fc projection", mlp_fc,
+                                  f"Project to 4x dimension: {self.config.n_embd} -> {4*self.config.n_embd}")
+
+                    mlp_activated = F.relu(mlp_fc).square()
+                    print_component(f"  Step 2b.ii: ReLU^2 activation", mlp_activated,
+                                  "Activation: ReLU(x)^2 (squared ReLU)")
+
+                    mlp_output = block.mlp.c_proj(mlp_activated)
+                    print_component(f"  Step 2b.iii: MLP output projection", mlp_output,
+                                  f"Project back to model dim: {4*self.config.n_embd} -> {self.config.n_embd}")
+
+                    # Step 2c: Residual connection
+                    x_after_mlp = x_after_attn + mlp_output
+                    print_component(f"  Step 2c: x + MLP(RMSNorm(x)) [RESIDUAL]",
+                                  x_after_mlp,
+                                  "Add MLP output to input (residual connection)")
+
+                    # Set x to the output for next block
+                    x = x_after_mlp
+
+                    print(f"\n{Colors.GREEN}  ✓ Block {layer_idx} complete{Colors.END}")
+                    print(f"{Colors.YELLOW}  Key insight: Pre-norm means we normalize BEFORE each operation{Colors.END}")
+                    print(f"{Colors.YELLOW}  Residuals allow gradients to flow directly through the network{Colors.END}\n")
                 else:
-                    print(f"  {Colors.GREEN}[Skipping detailed trace for block {layer_idx}]{Colors.END}")
+                    # For blocks we're skipping, still execute them
+                    x = block(x, cos_sin, kv_cache)
+                    print(f"  {Colors.GREEN}[Skipping detailed trace for block {layer_idx}, but still executing]{Colors.END}")
 
                 print()
+            else:
+                # Non-verbose mode: just execute the block
+                x = block(x, cos_sin, kv_cache)
 
         # =============================================================================
         # 4. FINAL RMSNorm
@@ -328,15 +479,10 @@ if __name__ == "__main__":
     config_keys = [k for k,v in globals().items() if not k.startswith('_') and isinstance(v, (int, float, bool, str))]
     exec(open(os.path.join('nanochat', 'configurator.py')).read())
 
-    # Setup - ensure CPU mode unless explicitly overridden
-    if device_type == "":
-        device_type = "cpu"  # Default to CPU for this debug script
+    # Setup - ensure CPU mode (always use CPU for this debug script)
+    # Force CPU regardless of what's available
+    device_type = "cpu"
 
-    # Safety check: warn if trying to use GPU
-    if device_type != "cpu":
-        print(f"{Colors.YELLOW}WARNING: You specified device_type={device_type}{Colors.END}")
-        print(f"{Colors.YELLOW}This debug script is designed for local CPU training.{Colors.END}")
-        print(f"{Colors.YELLOW}Continuing anyway, but parameters may not be optimized for GPU.{Colors.END}\n")
     ddp, ddp_rank, ddp_local_rank, ddp_world_size, device = compute_init(device_type)
     autocast_ctx = torch.amp.autocast(device_type=device_type, dtype=torch.bfloat16) if device_type == "cuda" else nullcontext()
 
