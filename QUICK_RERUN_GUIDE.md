@@ -20,8 +20,14 @@ bash scripts/download_data.sh
 ### Step 2: Submit Job (any node, ~12 hours)
 ```bash
 cd /scratch/ptolemy/users/$USER/slurm-nanochat
-sbatch scripts/speedrun.slurm
+
+# CRITICAL: Set WANDB_RUN to enable midtraining and SFT!
+WANDB_RUN=my_training_run sbatch scripts/speedrun.slurm
 ```
+
+**⚠️ IMPORTANT:** You MUST set `WANDB_RUN` or the job will fail immediately.
+- Without it, midtraining and SFT phases are SKIPPED
+- No wandb account needed - any non-'dummy' name works
 
 ### Step 3: Monitor
 ```bash
@@ -38,8 +44,9 @@ tail -f logs/nanochat_speedrun_*.out
 
 1. ✅ **Pre-download GPT-2/GPT-4 tokenizers** → tok_eval won't fail
 2. ✅ **Pre-download SmolTalk dataset** → midtraining won't fail
-3. ✅ **Increased time limit to 14 hours** → full pipeline will complete
+3. ✅ **Increased time limit to 12 hours** → full pipeline will complete
 4. ✅ **Made tok_eval gracefully handle missing tokenizers** → no crashes
+5. ✅ **Added WANDB_RUN validation** → prevents dummy mode from skipping training phases
 
 ---
 
@@ -82,7 +89,12 @@ srun --account=class-cse8990 --partition=gpu-a100 --gres=gpu:1 --mem=32G --time=
 cd /scratch/ptolemy/users/$USER/slurm-nanochat
 source /scratch/ptolemy/users/$USER/nanochat-venv/bin/activate
 export NANOCHAT_BASE_DIR="/scratch/ptolemy/users/$USER/nanochat-cache"
+
+# Chat with SFT model (default, recommended)
 python -m scripts.chat_cli
+
+# Or chat with base model if SFT wasn't completed
+python -m scripts.chat_cli -i mid
 ```
 
 ---
@@ -90,6 +102,7 @@ python -m scripts.chat_cli
 ## Files Modified
 - `scripts/download_data.sh` → Added SmolTalk & tokenizers
 - `scripts/tok_eval.py` → Handle offline mode
-- `scripts/speedrun.slurm` → 12 hour time limit (QOS maximum)
+- `scripts/speedrun.slurm` → 12 hour time limit + WANDB_RUN validation
+- `PTOLEMY_SETUP.md` → Updated with WANDB_RUN requirements and chat instructions
 
 See `TRAINING_FIXES_APPLIED.md` for details.

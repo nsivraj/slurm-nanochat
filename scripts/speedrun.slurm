@@ -189,10 +189,61 @@ fi
 echo -e "\n✅ All required data verified!"
 echo "=================================================="
 
-# Setup wandb (optional)
+# ============================================================================
+# CRITICAL: Validate WANDB_RUN variable
+# If set to 'dummy', midtraining and SFT phases will be SKIPPED!
+# ============================================================================
+
+echo -e "\n=================================================="
+echo "Validating WANDB_RUN Configuration"
+echo "=================================================="
+
+# Check if WANDB_RUN is set
 if [ -z "$WANDB_RUN" ]; then
-    WANDB_RUN=dummy  # Skip wandb logging
+    echo "❌ ERROR: WANDB_RUN environment variable is not set!"
+    echo ""
+    echo "CRITICAL: The WANDB_RUN variable controls whether training phases run."
+    echo "If not set (or set to 'dummy'), midtraining and SFT will be SKIPPED!"
+    echo ""
+    echo "This means:"
+    echo "  - No chat-finetuned model will be created"
+    echo "  - Chat functionality will NOT work"
+    echo "  - Only the base model will be trained"
+    echo ""
+    echo "To fix this, set WANDB_RUN when submitting the job:"
+    echo "  WANDB_RUN=my_training_run sbatch scripts/speedrun.slurm"
+    echo ""
+    echo "Note: You don't need wandb configured. Any non-'dummy' name will work."
+    echo "      The system will skip wandb logging but still perform all training."
+    echo ""
+    echo "=================================================="
+    exit 1
 fi
+
+# Warn if WANDB_RUN is set to 'dummy'
+if [ "$WANDB_RUN" = "dummy" ]; then
+    echo "❌ ERROR: WANDB_RUN is set to 'dummy'!"
+    echo ""
+    echo "CRITICAL: When WANDB_RUN='dummy', midtraining and SFT are SKIPPED!"
+    echo ""
+    echo "This means:"
+    echo "  - No chat-finetuned model will be created"
+    echo "  - Chat functionality will NOT work"
+    echo "  - Only the base model will be trained"
+    echo ""
+    echo "To fix this, set WANDB_RUN to any other name:"
+    echo "  WANDB_RUN=my_training_run sbatch scripts/speedrun.slurm"
+    echo ""
+    echo "Note: You don't need wandb configured. Any non-'dummy' name will work."
+    echo "      The system will skip wandb logging but still perform all training."
+    echo ""
+    echo "=================================================="
+    exit 1
+fi
+
+echo "✓ WANDB_RUN is set to: $WANDB_RUN"
+echo "  All training phases (base, midtraining, SFT) will execute."
+echo "=================================================="
 
 # -----------------------------------------------------------------------------
 # Start the speedrun workflow

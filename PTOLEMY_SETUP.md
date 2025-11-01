@@ -87,15 +87,24 @@ From any Ptolemy login node:
 ```bash
 cd /scratch/ptolemy/users/$USER/slurm-nanochat
 
-# Submit the job (logs directory will be created automatically)
-sbatch scripts/speedrun.slurm
+# CRITICAL: Set WANDB_RUN to enable all training phases
+# Without this, midtraining and SFT will be SKIPPED!
+# You don't need wandb configured - any non-'dummy' name works
+WANDB_RUN=my_training_run sbatch scripts/speedrun.slurm
 ```
 
-Or specify email directly:
+Or specify both email and WANDB_RUN:
 
 ```bash
-sbatch --mail-user=your_email@msstate.edu scripts/speedrun.slurm
+WANDB_RUN=my_training_run sbatch --mail-user=your_email@msstate.edu scripts/speedrun.slurm
 ```
+
+**IMPORTANT:**
+- **You MUST set `WANDB_RUN` to a non-"dummy" value** (e.g., `my_training_run`, `ptolemy_run`, `test_run`, etc.)
+- If `WANDB_RUN` is not set or is set to "dummy", the job will **fail immediately** with an error
+- This is required for midtraining and SFT phases to execute properly
+- You do **NOT** need to configure wandb - the system will skip wandb logging but still perform all training phases
+- Without proper midtraining and SFT training, chat functionality will **NOT work**
 
 **Note:** If you forgot to download data, the job will fail immediately with instructions on how to download it.
 
@@ -203,16 +212,29 @@ srun --account=class-cse8990 --partition=gpu-a100 --gres=gpu:1 --mem=32G --time=
 Then activate environment and chat:
 
 ```bash
-cd /scratch/ptolemy/users/$USER/nanochat
+cd /scratch/ptolemy/users/$USER/slurm-nanochat
 source /scratch/ptolemy/users/$USER/nanochat-venv/bin/activate
 export NANOCHAT_BASE_DIR="/scratch/ptolemy/users/$USER/nanochat-cache"
 
-# Chat via CLI
+# Chat with the chat-finetuned model (default, recommended)
 python -m scripts.chat_cli -p "Why is the sky blue?"
 
-# Or interactive chat
+# Or chat with the base model (if SFT training wasn't completed)
+python -m scripts.chat_cli -i mid -p "Why is the sky blue?"
+
+# Or interactive chat with the SFT model
 python -m scripts.chat_cli
+
+# Or interactive chat with the base model
+python -m scripts.chat_cli -i mid
 ```
+
+**Model Selection:**
+- **Default (no `-i` flag)**: Uses the chat-finetuned SFT model (recommended for conversational AI)
+- **`-i mid`**: Uses the base model after midtraining (fallback if SFT wasn't completed)
+- **`-i sft`**: Explicitly uses the SFT model (same as default)
+
+If you get a `FileNotFoundError` for `chatsft_checkpoints`, use `-i mid` to chat with the base model instead.
 
 ### Serve Web UI (requires port forwarding)
 
