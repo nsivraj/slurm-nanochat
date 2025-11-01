@@ -9,3 +9,5 @@ logs/
 
 .env.local
 .env
+
+target
