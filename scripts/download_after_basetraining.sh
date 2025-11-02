@@ -70,18 +70,23 @@ print()
 
 datasets_to_download = [
     # Midtraining datasets (training)
-    ("MMLU auxiliary_train (midtraining)", "cais/mmlu", "auxiliary_train", "train"),
-    ("GSM8K (midtraining)", "openai/gsm8k", "main", "train"),
-    ("SmolTalk (midtraining)", "HuggingFaceTB/smol-smoltalk", "default", "train"),
+    ("MMLU auxiliary_train (midtraining train)", "cais/mmlu", "auxiliary_train", "train"),
+    ("GSM8K (midtraining train)", "openai/gsm8k", "main", "train"),
+    ("SmolTalk (midtraining train)", "HuggingFaceTB/smol-smoltalk", None, "train"),
 
     # Midtraining datasets (validation)
-    ("MMLU all (validation)", "cais/mmlu", "all", "test"),
+    ("MMLU all (midtraining validation)", "cais/mmlu", "all", "test"),
+    ("GSM8K (midtraining validation)", "openai/gsm8k", "main", "test"),
+    ("SmolTalk (midtraining validation)", "HuggingFaceTB/smol-smoltalk", None, "test"),
 
-    # SFT datasets
-    ("ARC-Easy (SFT)", "allenai/ai2_arc", "ARC-Easy", "train"),
-    ("ARC-Challenge (SFT)", "allenai/ai2_arc", "ARC-Challenge", "train"),
-    ("GSM8K (SFT)", "openai/gsm8k", "main", "train"),
-    ("SmolTalk (SFT)", "HuggingFaceTB/smol-smoltalk", "default", "train"),
+    # SFT datasets (training)
+    ("ARC-Easy (SFT train)", "allenai/ai2_arc", "ARC-Easy", "train"),
+    ("ARC-Challenge (SFT train)", "allenai/ai2_arc", "ARC-Challenge", "train"),
+    ("GSM8K (SFT train)", "openai/gsm8k", "main", "train"),
+    ("SmolTalk (SFT train)", "HuggingFaceTB/smol-smoltalk", None, "train"),
+
+    # SFT datasets (validation)
+    ("SmolTalk (SFT validation)", "HuggingFaceTB/smol-smoltalk", None, "test"),
 ]
 
 download_count = 0
