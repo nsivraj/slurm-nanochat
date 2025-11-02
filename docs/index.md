@@ -261,7 +261,10 @@ Full comparison: [Training Environments](explanation/training-environments.md)
 - ✅ **Complete documentation update** - All guides reflect latest requirements
 - ✅ **Organized docs** into logical structure (Diátaxis framework)
 - ✅ **Troubleshooting guide** updated with dataset errors and WandB fixes
-- ✅ **Diagnosis documents** - Analysis of training failures in `experiments/`
+- ✅ **Diagnosis documents** - Complete analysis of all issues:
+  - `experiments/DIAGNOSIS_TRAINING_INCOMPLETE.md` - First training failure
+  - `experiments/DIAGNOSIS_RESUME_FAILURE.md` - Initial MMLU dataset error
+  - `experiments/DIAGNOSIS_DATASET_DOWNLOAD.md` - All dataset download fixes (final)
 - Session logs moved to `experiments/` folder
 - Better navigation and discoverability
 
