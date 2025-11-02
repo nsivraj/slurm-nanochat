@@ -245,10 +245,12 @@ Full comparison: [Training Environments](explanation/training-environments.md)
 - ✅ **Added validation** to `speedrun.slurm` - Job fails fast with clear errors
 
 **Required Datasets (as of 2025-11-01):**
-- MMLU (auxiliary_train) - For midtraining
+- MMLU (auxiliary_train) - For midtraining training
+- MMLU (all) - For midtraining validation
 - GSM8K (main) - For midtraining and SFT
 - SmolTalk (default) - For midtraining and SFT (uses cached version)
 - ARC (ARC-Easy) - For SFT
+- ARC (ARC-Challenge) - For SFT
 - English word list (words_alpha.txt) - For SpellingBee task in midtraining
 
 **New Scripts:**

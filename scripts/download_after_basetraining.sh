@@ -69,13 +69,17 @@ print(f"Using HuggingFace cache: {hf_home}")
 print()
 
 datasets_to_download = [
-    # Midtraining datasets
-    ("MMLU (midtraining)", "cais/mmlu", "auxiliary_train", "train"),
+    # Midtraining datasets (training)
+    ("MMLU auxiliary_train (midtraining)", "cais/mmlu", "auxiliary_train", "train"),
     ("GSM8K (midtraining)", "openai/gsm8k", "main", "train"),
     ("SmolTalk (midtraining)", "HuggingFaceTB/smol-smoltalk", "default", "train"),
 
+    # Midtraining datasets (validation)
+    ("MMLU all (validation)", "cais/mmlu", "all", "test"),
+
     # SFT datasets
-    ("ARC (SFT)", "allenai/ai2_arc", "ARC-Easy", "train"),
+    ("ARC-Easy (SFT)", "allenai/ai2_arc", "ARC-Easy", "train"),
+    ("ARC-Challenge (SFT)", "allenai/ai2_arc", "ARC-Challenge", "train"),
     ("GSM8K (SFT)", "openai/gsm8k", "main", "train"),
     ("SmolTalk (SFT)", "HuggingFaceTB/smol-smoltalk", "default", "train"),
 ]

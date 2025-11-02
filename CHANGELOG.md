@@ -15,10 +15,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added - Critical Dataset Support
 - **NEW REQUIREMENT**: Additional datasets required for midtraining and SFT
   - `scripts/download_after_basetraining.sh` - Downloads all midtraining/SFT datasets
-  - MMLU (auxiliary_train) - For midtraining
+  - MMLU (auxiliary_train) - For midtraining training
+  - MMLU (all) - For midtraining validation
   - GSM8K (main) - For midtraining and SFT
   - SmolTalk (default) - For midtraining and SFT (uses cached version)
   - ARC (ARC-Easy) - For SFT
+  - ARC (ARC-Challenge) - For SFT
   - English word list (words_alpha.txt) - For SpellingBee task in midtraining
 - `scripts/resume_mid_sft.slurm` - Resume training from midtraining phase
   - Skips base training (saves ~7 hours)
