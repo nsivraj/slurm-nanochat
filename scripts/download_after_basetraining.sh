@@ -150,6 +150,29 @@ else:
 print("=" * 60)
 EOF
 
+# Download English word list for SpellingBee task
+echo ""
+echo "Downloading English word list for SpellingBee task..."
+echo ""
+
+WORD_LIST_URL="https://raw.githubusercontent.com/dwyl/english-words/refs/heads/master/words_alpha.txt"
+WORD_LIST_FILE="$NANOCHAT_BASE_DIR/words_alpha.txt"
+
+if [ -f "$WORD_LIST_FILE" ]; then
+    echo "✓ English word list already downloaded"
+    echo "  Located at: $WORD_LIST_FILE"
+else
+    echo "Downloading from: $WORD_LIST_URL"
+    if curl -f -L -o "$WORD_LIST_FILE" "$WORD_LIST_URL"; then
+        echo "✓ Successfully downloaded English word list"
+        echo "  Saved to: $WORD_LIST_FILE"
+    else
+        echo "⚠️  Failed to download English word list"
+        echo "This is used by the SpellingBee task in midtraining"
+        echo "Training may fail if this file is not available"
+    fi
+fi
+
 # Check if download was successful
 if [ $? -eq 0 ]; then
     echo ""
@@ -172,6 +195,14 @@ if [ $? -eq 0 ]; then
             ALL_FOUND=false
         fi
     done
+
+    # Check word list
+    if [ -f "$WORD_LIST_FILE" ]; then
+        echo "✓ Found: $WORD_LIST_FILE"
+    else
+        echo "⚠️  Missing: $WORD_LIST_FILE"
+        ALL_FOUND=false
+    fi
 
     echo ""
     if [ "$ALL_FOUND" = true ]; then
