@@ -19,6 +19,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - GSM8K (main) - For midtraining and SFT
   - SmolTalk (default) - For midtraining and SFT (uses cached version)
   - ARC (ARC-Easy) - For SFT
+  - English word list (words_alpha.txt) - For SpellingBee task in midtraining
 - `scripts/resume_mid_sft.slurm` - Resume training from midtraining phase
   - Skips base training (saves ~7 hours)
   - Verifies base model checkpoint exists
@@ -35,6 +36,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Fixed `download_after_basetraining.sh` to check cache before downloading
 - Handles already-cached datasets gracefully (no false errors)
 - Skips duplicate dataset entries automatically
+- Added English word list download for SpellingBee task
 - Improved error messages and verification
 
 ### Changed - Documentation

@@ -249,6 +249,7 @@ Full comparison: [Training Environments](explanation/training-environments.md)
 - GSM8K (main) - For midtraining and SFT
 - SmolTalk (default) - For midtraining and SFT (uses cached version)
 - ARC (ARC-Easy) - For SFT
+- English word list (words_alpha.txt) - For SpellingBee task in midtraining
 
 **New Scripts:**
 - `scripts/download_after_basetraining.sh` - Downloads all datasets for midtraining + SFT
