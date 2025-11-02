@@ -225,11 +225,11 @@ echo -e "\n[1/3] Midtraining (teaching conversation format)..."
 echo "This will take approximately 2-3 hours"
 
 # Run midtraining and eval
-torchrun --standalone --nproc_per_node=8 -m scripts.mid_train -- --run=$WANDB_RUN
-if [ $? -ne 0 ]; then
-    echo "❌ Midtraining failed!"
-    exit 1
-fi
+# torchrun --standalone --nproc_per_node=8 -m scripts.mid_train -- --run=$WANDB_RUN
+# if [ $? -ne 0 ]; then
+#     echo "❌ Midtraining failed!"
+#     exit 1
+# fi
 
 echo "Evaluating midtraining checkpoint..."
 torchrun --standalone --nproc_per_node=8 -m scripts.chat_eval -- -i mid
