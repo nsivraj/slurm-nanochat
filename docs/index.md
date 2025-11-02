@@ -234,15 +234,31 @@ Full comparison: [Training Environments](explanation/training-environments.md)
 
 ## 🔄 What's New (2025-11-01)
 
-### Critical Fixes Applied
-- ✅ **Fixed WANDB_RUN issue** - Midtraining and SFT were being skipped
-- ✅ **Added validation** to `speedrun.slurm` - Job fails fast with clear errors
-- ✅ **Updated documentation** - All guides reflect latest fixes
-- ✅ **Organized docs** into logical structure (Diátaxis framework)
+### Critical Updates & Fixes
 
-### Documentation Reorganization
-- All platform-specific docs consolidated
-- Clear separation: tutorials, how-to, explanation, reference
+**Training Requirements:**
+- ✅ **New dataset requirements** - Additional datasets needed for midtraining/SFT
+- ✅ **New download script** - `scripts/download_after_basetraining.sh` downloads all required datasets
+- ✅ **Resume training support** - New `scripts/resume_mid_sft.slurm` to resume from failed jobs
+- ✅ **Fixed WANDB_RUN issue** - Midtraining and SFT were being skipped
+- ✅ **Fixed WandB offline mode** - GPU nodes can now train without internet/authentication
+- ✅ **Added validation** to `speedrun.slurm` - Job fails fast with clear errors
+
+**Required Datasets (as of 2025-11-01):**
+- MMLU (auxiliary_train) - For midtraining
+- GSM8K (main) - For midtraining and SFT
+- SmolTalk (default) - For midtraining and SFT (uses cached version)
+- ARC (ARC-Easy) - For SFT
+
+**New Scripts:**
+- `scripts/download_after_basetraining.sh` - Downloads all datasets for midtraining + SFT
+- `scripts/resume_mid_sft.slurm` - Resume training from midtraining (skips base training, saves ~7 hours)
+
+**Documentation:**
+- ✅ **Complete documentation update** - All guides reflect latest requirements
+- ✅ **Organized docs** into logical structure (Diátaxis framework)
+- ✅ **Troubleshooting guide** updated with dataset errors and WandB fixes
+- ✅ **Diagnosis documents** - Analysis of training failures in `experiments/`
 - Session logs moved to `experiments/` folder
 - Better navigation and discoverability
 

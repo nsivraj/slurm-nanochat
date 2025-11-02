@@ -8,6 +8,42 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+---
+
+## [2025-11-01] - Dataset Requirements & Resume Training
+
+### Added - Critical Dataset Support
+- **NEW REQUIREMENT**: Additional datasets required for midtraining and SFT
+  - `scripts/download_after_basetraining.sh` - Downloads all midtraining/SFT datasets
+  - MMLU (auxiliary_train) - For midtraining
+  - GSM8K (main) - For midtraining and SFT
+  - SmolTalk (default) - For midtraining and SFT (uses cached version)
+  - ARC (ARC-Easy) - For SFT
+- `scripts/resume_mid_sft.slurm` - Resume training from midtraining phase
+  - Skips base training (saves ~7 hours)
+  - Verifies base model checkpoint exists
+  - Runs midtraining + SFT only (~4-6 hours)
+
+### Added - Diagnosis & Documentation
+- `experiments/DIAGNOSIS_TRAINING_INCOMPLETE.md` - Analysis of first training failure
+- `experiments/DIAGNOSIS_RESUME_FAILURE.md` - Analysis of MMLU dataset error
+- Updated all documentation with dataset requirements
+- Added resume training workflow to all guides
+- Updated troubleshooting guide with dataset errors
+
+### Fixed - Dataset Download Issues
+- Fixed `download_after_basetraining.sh` to check cache before downloading
+- Handles already-cached datasets gracefully (no false errors)
+- Skips duplicate dataset entries automatically
+- Improved error messages and verification
+
+### Changed - Documentation
+- `docs/how-to/setup-environment.md` - Added dataset download step
+- `docs/how-to/run-a-training-job.md` - Added resume training section
+- `docs/how-to/troubleshoot-common-issues.md` - Added dataset error solutions
+- `docs/tutorials/02-hpc-first-job.md` - Updated with dataset requirements
+- `docs/explanation/hpc-environment.md` - Added resume workflow
+
 ### WandB Offline Mode Fix (2025-11-01)
 - **CRITICAL**: Fixed WandB authentication error on GPU nodes
   - Added `WANDB_MODE=offline` to `scripts/speedrun.slurm`
