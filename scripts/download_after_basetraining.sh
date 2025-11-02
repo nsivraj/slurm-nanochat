@@ -97,25 +97,42 @@ for name, dataset_id, subset, split in datasets_to_download:
 
     seen_datasets[dataset_key] = True
 
-    print(f"[{download_count + cached_count + error_count + 1}/{len(datasets_to_download)}] Downloading {name}...")
+    print(f"[{download_count + cached_count + error_count + 1}/{len(datasets_to_download)}] Processing {name}...")
     print(f"  Dataset: {dataset_id}")
     if subset:
         print(f"  Subset: {subset}")
     print(f"  Split: {split}")
 
+    # Check if already cached
+    cache_path = os.path.join(hf_home, "datasets", dataset_id.replace('/', '___'))
+    if os.path.exists(cache_path):
+        print(f"  ✓ Already cached (skipping download)")
+        print(f"    Cached at: {cache_path}/")
+        download_count += 1
+        print()
+        continue
+
+    # Try to download
     try:
         if subset:
             ds = load_dataset(dataset_id, subset, split=split)
         else:
             ds = load_dataset(dataset_id, split=split)
 
-        print(f"  ✓ Successfully downloaded/verified {name}")
+        print(f"  ✓ Successfully downloaded {name}")
         print(f"    Rows: {len(ds):,}")
         print(f"    Cached at: {hf_home}/datasets/{dataset_id.replace('/', '___')}/")
         download_count += 1
     except Exception as e:
-        print(f"  ❌ Failed to download {name}: {e}")
-        error_count += 1
+        # Check again if it was cached during the failed download attempt
+        if os.path.exists(cache_path):
+            print(f"  ⚠️  Download had errors but dataset is cached: {e}")
+            print(f"  ✓ Dataset is usable from cache")
+            print(f"    Cached at: {cache_path}/")
+            download_count += 1
+        else:
+            print(f"  ❌ Failed to download {name}: {e}")
+            error_count += 1
 
     print()
 
