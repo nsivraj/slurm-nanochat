@@ -111,13 +111,13 @@ for name, dataset_id, subset, split in datasets_to_download:
 
     print(f"[{download_count + cached_count + error_count + 1}/{len(datasets_to_download)}] Processing {name}...")
     print(f"  Dataset: {dataset_id}")
-    if subset:
+    if subset and subset != "None":
         print(f"  Subset: {subset}")
     print(f"  Split: {split}")
 
     # Try to load the dataset (will use cache if available, download if not)
     try:
-        if subset:
+        if subset and subset != "None":
             ds = load_dataset(dataset_id, subset, split=split)
         else:
             ds = load_dataset(dataset_id, split=split)
