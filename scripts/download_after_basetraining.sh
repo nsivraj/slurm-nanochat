@@ -22,11 +22,14 @@ if [ ! -f "scripts/mid_train.py" ]; then
     exit 1
 fi
 
-# Set cache directory
+# Set cache directories
 export HF_HOME="/scratch/ptolemy/users/$USER/cache/huggingface"
+export NANOCHAT_BASE_DIR="/scratch/ptolemy/users/$USER/nanochat-cache"
 mkdir -p $HF_HOME
+mkdir -p $NANOCHAT_BASE_DIR
 
-echo "Cache directory: $HF_HOME"
+echo "HuggingFace cache: $HF_HOME"
+echo "Nanochat cache: $NANOCHAT_BASE_DIR"
 echo ""
 
 # Check if virtual environment is activated
