@@ -116,11 +116,18 @@ for name, dataset_id, subset, split in datasets_to_download:
     print(f"  Split: {split}")
 
     # Try to load the dataset (will use cache if available, download if not)
+    # Use explicit kwargs pattern to handle optional 'name' parameter correctly
     try:
-        if subset and subset != "None":
-            ds = load_dataset(dataset_id, subset, split=split)
-        else:
-            ds = load_dataset(dataset_id, split=split)
+        load_args = {
+            "path": dataset_id,
+            "split": split
+        }
+
+        # Only add 'name' parameter if subset is meaningful (not None or "None")
+        if subset is not None and subset != "None":
+            load_args["name"] = subset
+
+        ds = load_dataset(**load_args)
 
         print(f"  ✓ Successfully loaded {name}")
         print(f"    Rows: {len(ds):,}")
