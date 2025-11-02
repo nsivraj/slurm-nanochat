@@ -87,6 +87,9 @@ datasets_to_download = [
 
     # SFT datasets (validation)
     ("SmolTalk (SFT validation)", "HuggingFaceTB/smol-smoltalk", None, "test"),
+
+    # Evaluation datasets
+    ("HumanEval (evaluation)", "openai/openai_humaneval", None, "test"),
 ]
 
 download_count = 0
