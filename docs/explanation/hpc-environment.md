@@ -47,6 +47,7 @@ Downloads:
 - Identity conversations (~2.3MB)
 - GPT-2/GPT-4 tokenizers
 - SmolTalk dataset
+- MMLU dataset (required for midtraining as of 2025-11-01)
 
 #### Phase 2: Training (on GPU nodes, ~12 hours)
 
@@ -354,6 +355,22 @@ cd /scratch/ptolemy/users/$USER/slurm-nanochat
 # 3. Submit job (CRITICAL: Set WANDB_RUN)
 WANDB_RUN=my_training_run sbatch scripts/speedrun.slurm
 ```
+
+### Resuming Failed Training (New Feature 2025-11-01)
+
+If base training completed but midtraining/SFT failed (e.g., due to MMLU dataset missing or job timeout):
+
+```bash
+# 1. Ensure all midtraining/SFT datasets are downloaded (common failure cause)
+ssh <username>@ptolemy-devel-1.arc.msstate.edu
+cd /scratch/ptolemy/users/$USER/slurm-nanochat
+bash scripts/download_after_basetraining.sh
+
+# 2. Submit resume job (skips base training)
+WANDB_RUN=my_resume_run sbatch scripts/resume_mid_sft.slurm
+```
+
+**Time saved:** ~7 hours (only runs midtraining + SFT)
 
 ### Monitoring Job
 

@@ -92,8 +92,20 @@ This downloads:
 - Identity conversations (~2.3MB)
 - GPT-2/GPT-4 tokenizers (for evaluation)
 - SmolTalk dataset (for midtraining)
+- MMLU dataset (for midtraining)
 
 **Go get coffee - this takes a while!**
+
+**NEW (2025-11-01):** You should also download datasets for midtraining and SFT:
+
+```bash
+# Still on ptolemy-devel-1
+bash scripts/download_after_basetraining.sh
+```
+
+**Time:** ~5-15 minutes
+
+This downloads all datasets required for midtraining and SFT phases (MMLU, GSM8K, SmolTalk, ARC). Without them, your job will fail during midtraining or SFT with `ConnectionError` messages.
 
 ---
 

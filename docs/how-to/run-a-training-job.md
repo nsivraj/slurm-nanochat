@@ -336,6 +336,41 @@ scancel 12345
 
 **Note:** Partial checkpoints may be saved, but you'll need to resubmit from the beginning.
 
+### Resuming from Failed Training (Midtraining + SFT Only)
+
+**New Feature (2025-11-01):** If your training completed base model but failed during midtraining or SFT, you can resume without re-training the base model.
+
+**When to use this:**
+- Base training completed successfully (~7 hours)
+- Job timed out or failed during midtraining or SFT
+- You have the base model checkpoint at `/scratch/ptolemy/users/$USER/nanochat-cache/base_checkpoints/d20/`
+
+**How to resume:**
+
+```bash
+# 1. Ensure all midtraining/SFT datasets are downloaded (common failure cause)
+ssh <username>@ptolemy-devel-1.arc.msstate.edu
+cd /scratch/ptolemy/users/$USER/slurm-nanochat
+bash scripts/download_after_basetraining.sh
+
+# 2. Submit resume job (from any login node)
+WANDB_RUN=my_resume_run sbatch scripts/resume_mid_sft.slurm
+```
+
+**What the resume script does:**
+- ✅ Skips base training entirely (saves ~7 hours)
+- ✅ Verifies base model checkpoint exists
+- ✅ Runs midtraining from scratch (~2-3 hours)
+- ✅ Runs SFT (~2-3 hours)
+- ✅ Generates final report
+
+**Time saved:** ~7 hours (only runs midtraining + SFT, ~4-6 hours total)
+
+**Related files:**
+- Resume script: `scripts/resume_mid_sft.slurm`
+- Diagnosis: `experiments/DIAGNOSIS_TRAINING_INCOMPLETE.md`
+- MMLU fix: `experiments/DIAGNOSIS_RESUME_FAILURE.md`
+
 ---
 
 ## Production GPU Training
