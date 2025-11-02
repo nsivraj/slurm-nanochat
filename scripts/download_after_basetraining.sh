@@ -69,19 +69,35 @@ datasets_to_download = [
     # Midtraining datasets
     ("MMLU (midtraining)", "cais/mmlu", "auxiliary_train", "train"),
     ("GSM8K (midtraining)", "openai/gsm8k", "main", "train"),
-    ("SmolTalk (midtraining)", "HuggingFaceTB/smol-smoltalk", None, "train"),
+    ("SmolTalk (midtraining)", "HuggingFaceTB/smol-smoltalk", "default", "train"),
 
     # SFT datasets
     ("ARC (SFT)", "allenai/ai2_arc", "ARC-Easy", "train"),
     ("GSM8K (SFT)", "openai/gsm8k", "main", "train"),
-    ("SmolTalk (SFT)", "HuggingFaceTB/smol-smoltalk", None, "train"),
+    ("SmolTalk (SFT)", "HuggingFaceTB/smol-smoltalk", "default", "train"),
 ]
 
 download_count = 0
 error_count = 0
+cached_count = 0
+
+# Track unique datasets (avoid downloading duplicates)
+seen_datasets = {}
 
 for name, dataset_id, subset, split in datasets_to_download:
-    print(f"[{download_count + 1}/{len(datasets_to_download)}] Downloading {name}...")
+    # Create unique key for this dataset
+    dataset_key = f"{dataset_id}_{subset}_{split}"
+
+    # Skip if we already downloaded this exact dataset
+    if dataset_key in seen_datasets:
+        print(f"[{download_count + cached_count + error_count + 1}/{len(datasets_to_download)}] Skipping {name} (already processed)")
+        cached_count += 1
+        print()
+        continue
+
+    seen_datasets[dataset_key] = True
+
+    print(f"[{download_count + cached_count + error_count + 1}/{len(datasets_to_download)}] Downloading {name}...")
     print(f"  Dataset: {dataset_id}")
     if subset:
         print(f"  Subset: {subset}")
@@ -93,7 +109,7 @@ for name, dataset_id, subset, split in datasets_to_download:
         else:
             ds = load_dataset(dataset_id, split=split)
 
-        print(f"  ✓ Successfully downloaded {name}")
+        print(f"  ✓ Successfully downloaded/verified {name}")
         print(f"    Rows: {len(ds):,}")
         print(f"    Cached at: {hf_home}/datasets/{dataset_id.replace('/', '___')}/")
         download_count += 1
@@ -104,10 +120,15 @@ for name, dataset_id, subset, split in datasets_to_download:
     print()
 
 print("=" * 60)
+total_unique = download_count + error_count
 if error_count == 0:
-    print(f"✅ All {download_count} datasets downloaded successfully!")
+    print(f"✅ All {total_unique} unique datasets downloaded/verified successfully!")
+    if cached_count > 0:
+        print(f"   ({cached_count} duplicate entries skipped)")
 else:
-    print(f"⚠️  Downloaded {download_count} datasets, {error_count} failed")
+    print(f"⚠️  Downloaded {download_count}/{total_unique} unique datasets, {error_count} failed")
+    if cached_count > 0:
+        print(f"   ({cached_count} duplicate entries skipped)")
     print("Some datasets may already be cached or may not be critical")
 print("=" * 60)
 EOF
