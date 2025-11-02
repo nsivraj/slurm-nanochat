@@ -198,7 +198,63 @@ wandb sync /scratch/ptolemy/users/$USER/nanochat-cache/wandb/
 **If you still see this error:**
 Make sure you're using the latest version of `scripts/speedrun.slurm`. The fix was added on 2025-11-01.
 
-### 4. Data Not Downloaded
+### 4. Missing Datasets for Midtraining/SFT (NEW)
+
+**Error messages:**
+```
+ConnectionError: Couldn't reach 'cais/mmlu' on the Hub (LocalEntryNotFoundError)
+ConnectionError: Couldn't reach 'openai/gsm8k' on the Hub (LocalEntryNotFoundError)
+ConnectionError: Couldn't reach 'HuggingFaceTB/smol-smoltalk' on the Hub (LocalEntryNotFoundError)
+ConnectionError: Couldn't reach 'allenai/ai2_arc' on the Hub (LocalEntryNotFoundError)
+```
+
+**Cause:** Required datasets not downloaded (as of 2025-11-01)
+
+**When it occurs:** Job fails during midtraining or SFT initialization
+
+**Solution:**
+```bash
+# SSH to devel node (has internet)
+ssh <username>@ptolemy-devel-1.arc.msstate.edu
+
+# Download all required datasets for midtraining + SFT
+cd /scratch/ptolemy/users/$USER/slurm-nanochat
+bash scripts/download_after_basetraining.sh
+
+# Wait ~5-15 minutes for download
+
+# Resubmit job
+WANDB_RUN=my_run sbatch scripts/speedrun.slurm
+```
+
+**If you have a completed base training:**
+
+You can resume from midtraining only:
+```bash
+# Download required datasets first
+bash scripts/download_after_basetraining.sh
+
+# Resume from midtraining + SFT
+WANDB_RUN=my_run sbatch scripts/resume_mid_sft.slurm
+```
+
+**Datasets downloaded:**
+- MMLU (auxiliary_train) - For midtraining
+- GSM8K (main) - For midtraining and SFT
+- SmolTalk - For midtraining and SFT
+- ARC (ARC-Easy) - For SFT
+
+**Why this happens:**
+- The original `download_data.sh` script only downloads base training data
+- These datasets are only needed for midtraining and SFT (not base training)
+- GPU nodes have no internet access to download them on-demand
+
+**Related files:**
+- See: `experiments/DIAGNOSIS_RESUME_FAILURE.md` for full analysis
+- Script: `scripts/download_after_basetraining.sh`
+- Resume script: `scripts/resume_mid_sft.slurm`
+
+### 5. Data Not Downloaded
 
 **Error message:**
 ```
@@ -217,7 +273,10 @@ ssh <username>@ptolemy-devel-1.arc.msstate.edu
 cd /scratch/ptolemy/users/$USER/slurm-nanochat
 bash scripts/download_data.sh
 
-# Wait 30-60 minutes for ~24GB download
+# Download datasets for midtraining + SFT (required as of 2025-11-01)
+bash scripts/download_after_basetraining.sh
+
+# Wait 30-60 minutes for base data + ~5-15 minutes for mid/SFT datasets
 
 # Then submit job from any node
 WANDB_RUN=my_run sbatch scripts/speedrun.slurm

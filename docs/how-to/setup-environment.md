@@ -201,8 +201,38 @@ This downloads:
 - Identity conversations (~2.3MB)
 - GPT-2/GPT-4 tokenizers
 - SmolTalk dataset
+- MMLU dataset (for midtraining)
 
 **Go get coffee - this takes a while!**
+
+#### 7. Download Datasets for Midtraining & SFT (Required)
+
+**NEW REQUIREMENT (2025-11-01):** Additional datasets are now required for midtraining and SFT phases.
+
+```bash
+# Still on ptolemy-devel-1
+bash scripts/download_after_basetraining.sh
+```
+
+**Time:** ~5-15 minutes
+
+This downloads all datasets needed for midtraining and SFT:
+- **MMLU** (auxiliary_train) - Multiple choice problems for midtraining
+- **GSM8K** (main) - Math problems for midtraining and SFT
+- **SmolTalk** - Conversation data for midtraining and SFT
+- **ARC** (ARC-Easy) - Science questions for SFT
+
+Without these datasets, your training job will fail during midtraining or SFT with errors like:
+
+```
+ConnectionError: Couldn't reach 'cais/mmlu' on the Hub (LocalEntryNotFoundError)
+ConnectionError: Couldn't reach 'openai/gsm8k' on the Hub (LocalEntryNotFoundError)
+```
+
+**Why this is separate:**
+- The main `download_data.sh` script downloads base training data only
+- These datasets are only needed for midtraining and SFT (not base training)
+- If you're resuming from a completed base training, you can run this separately
 
 ### What Gets Installed
 
