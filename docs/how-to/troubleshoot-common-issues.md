@@ -198,7 +198,7 @@ wandb sync /scratch/ptolemy/users/$USER/nanochat-cache/wandb/
 **If you still see this error:**
 Make sure you're using the latest version of `scripts/speedrun.slurm`. The fix was added on 2025-11-01.
 
-### 4. Missing Datasets for Midtraining/SFT (NEW)
+### 4. Missing Datasets for Midtraining/SFT/Evaluation
 
 **Error messages:**
 ```
@@ -206,9 +206,12 @@ ConnectionError: Couldn't reach 'cais/mmlu' on the Hub (LocalEntryNotFoundError)
 ConnectionError: Couldn't reach 'openai/gsm8k' on the Hub (LocalEntryNotFoundError)
 ConnectionError: Couldn't reach 'HuggingFaceTB/smol-smoltalk' on the Hub (LocalEntryNotFoundError)
 ConnectionError: Couldn't reach 'allenai/ai2_arc' on the Hub (LocalEntryNotFoundError)
+ConnectionError: Couldn't reach 'openai/openai_humaneval' on the Hub (LocalEntryNotFoundError)
 ```
 
-**Cause:** Required datasets not downloaded (as of 2025-11-01)
+**Cause:** Required datasets not downloaded
+
+**Fixed:** 2025-11-03 - Added HumanEval dataset to download script
 
 **When it occurs:** Job fails during midtraining or SFT initialization
 
@@ -239,15 +242,17 @@ WANDB_RUN=my_run sbatch scripts/resume_mid_sft.slurm
 ```
 
 **Datasets downloaded:**
-- MMLU (auxiliary_train) - For midtraining
-- GSM8K (main) - For midtraining and SFT
+- MMLU (auxiliary_train, all) - For midtraining training and validation
+- GSM8K (main) - For midtraining, SFT, and evaluation
 - SmolTalk - For midtraining and SFT
-- ARC (ARC-Easy) - For SFT
+- ARC (ARC-Easy, ARC-Challenge) - For SFT
+- **HumanEval** - For evaluation (added 2025-11-03)
 
 **Why this happens:**
 - The original `download_data.sh` script only downloads base training data
-- These datasets are only needed for midtraining and SFT (not base training)
+- These datasets are only needed for midtraining, SFT, and evaluation (not base training)
 - GPU nodes have no internet access to download them on-demand
+- HumanEval is specifically used in `tasks/humaneval.py` for code generation evaluation
 
 **Related files:**
 - See: `experiments/DIAGNOSIS_RESUME_FAILURE.md` for full analysis

@@ -259,31 +259,35 @@ The complete list of datasets now downloaded:
 ### SFT (Validation)
 11. SmolTalk (test) - Already counted (#6)
 
-### Other
-12. English word list (words_alpha.txt) - ~370K words for SpellingBee task
+### Evaluation
+12. HumanEval (test) - 164 rows for code generation evaluation
 
-**Total unique datasets:** 8 datasets + 1 word list
+### Other
+13. English word list (words_alpha.txt) - ~370K words for SpellingBee task
+
+**Total unique datasets:** 9 datasets + 1 word list
 
 ---
 
 ## Testing Results
 
-After all fixes, the download script successfully loads all datasets:
+After all fixes (including HumanEval), the download script successfully loads all datasets:
 
 ```
-[1/11] ✓ Successfully loaded MMLU auxiliary_train (midtraining train) - 99,842 rows
-[2/11] ✓ Successfully loaded GSM8K (midtraining train) - 7,473 rows
-[3/11] ✓ Successfully loaded SmolTalk (midtraining train) - 460,000 rows
-[4/11] ✓ Successfully loaded MMLU all (midtraining validation) - 14,042 rows
-[5/11] ✓ Successfully loaded GSM8K (midtraining validation) - 1,319 rows
-[6/11] ✓ Successfully loaded SmolTalk (midtraining validation) - 24,000 rows
-[7/11] ✓ Successfully loaded ARC-Easy (SFT train) - 2,251 rows
-[8/11] ✓ Successfully loaded ARC-Challenge (SFT train) - 1,119 rows
-[9/11] Skipping GSM8K (SFT train) (already processed)
-[10/11] Skipping SmolTalk (SFT train) (already processed)
-[11/11] Skipping SmolTalk (SFT validation) (already processed)
+[1/12] ✓ Successfully loaded MMLU auxiliary_train (midtraining train) - 99,842 rows
+[2/12] ✓ Successfully loaded GSM8K (midtraining train) - 7,473 rows
+[3/12] ✓ Successfully loaded SmolTalk (midtraining train) - 460,000 rows
+[4/12] ✓ Successfully loaded MMLU all (midtraining validation) - 14,042 rows
+[5/12] ✓ Successfully loaded GSM8K (midtraining validation) - 1,319 rows
+[6/12] ✓ Successfully loaded SmolTalk (midtraining validation) - 24,000 rows
+[7/12] ✓ Successfully loaded ARC-Easy (SFT train) - 2,251 rows
+[8/12] ✓ Successfully loaded ARC-Challenge (SFT train) - 1,119 rows
+[9/12] Skipping GSM8K (SFT train) (already processed)
+[10/12] Skipping SmolTalk (SFT train) (already processed)
+[11/12] Skipping SmolTalk (SFT validation) (already processed)
+[12/12] ✓ Successfully loaded HumanEval (evaluation) - 164 rows
 
-✅ All 8 unique datasets downloaded/verified successfully!
+✅ All 9 unique datasets downloaded/verified successfully!
    (3 duplicate entries skipped)
 ```
 
@@ -297,6 +301,8 @@ After all fixes, the download script successfully loads all datasets:
 4. **Use kwargs for optional parameters** - More robust than positional args in bash heredocs
 5. **Analyze source code thoroughly** - Read the actual training scripts to find all requirements
 6. **Test splits matter** - Both train and test splits needed for validation
+7. **Check evaluation tasks too** - Datasets used in evaluation (like HumanEval) must also be pre-downloaded
+8. **Iterative fixing works** - Missing datasets can be identified one by one and added to the download script
 
 ---
 
@@ -323,11 +329,59 @@ The job should now complete successfully through midtraining and SFT phases!
 
 ---
 
+## Update: HumanEval Dataset Issue (2025-11-03)
+
+### Problem
+
+After fixing the midtraining datasets, Job 76389 failed with:
+```
+ConnectionError: Couldn't reach 'openai/openai_humaneval' on the Hub (LocalEntryNotFoundError)
+```
+
+**Location:** `tasks/humaneval.py:51`
+
+### Root Cause
+
+The HumanEval dataset is used for evaluation but was **not included** in the download script. Looking at `tasks/humaneval.py:51`:
+```python
+self.ds = load_dataset("openai/openai_humaneval", split="test").shuffle(seed=42)
+```
+
+This dataset is used during midtraining evaluation to test code generation capabilities.
+
+### Solution
+
+Added HumanEval to the download list in `scripts/download_after_basetraining.sh`:
+```python
+# Evaluation datasets
+("HumanEval (evaluation)", "openai/openai_humaneval", None, "test"),
+```
+
+### Result
+
+After running the updated download script:
+- ✅ HumanEval dataset successfully cached
+- ✅ Midtraining evaluation completed without errors
+- ✅ SFT phase ran successfully
+- ✅ Chat CLI working: `python -m scripts.chat_cli -p "Hello"`
+
+### Process Used
+
+User successfully completed training by:
+1. Running updated `scripts/download_after_basetraining.sh` on ptolemy-devel-1
+2. Commenting out midtraining step in `scripts/resume_mid_sft.slurm` (already done)
+3. Re-running evaluation step (now had HumanEval dataset)
+4. SFT phase completed successfully
+5. Model chat functionality confirmed working
+
+---
+
 ## Related Files
 
 - **Download script:** `scripts/download_after_basetraining.sh`
 - **Resume script:** `scripts/resume_mid_sft.slurm`
 - **Midtraining script:** `scripts/mid_train.py`
 - **SFT script:** `scripts/chat_sft.py`
+- **HumanEval task:** `tasks/humaneval.py`
 - **Previous diagnosis:** `experiments/DIAGNOSIS_RESUME_FAILURE.md`
 - **Troubleshooting:** `docs/how-to/troubleshoot-common-issues.md`

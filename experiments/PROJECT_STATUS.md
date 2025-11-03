@@ -1,12 +1,40 @@
 # nanochat Project Status
 
-**Last Updated:** 2025-10-30
+**Last Updated:** 2025-11-03
 **Assignment:** CSE8990 Assignment 3 - Transformer Architecture Analysis
 **Due Date:** October 31, 2025
 
 ---
 
-## Current Status: TRAINING IN PROGRESS 🚀
+## Current Status: TRAINING COMPLETED SUCCESSFULLY ✅
+
+### 🎉 Latest Success (2025-11-03)
+
+**Job:** Resume Midtraining + SFT (Job ID: 76389)
+
+**Key Achievement:** Complete training pipeline successfully executed with the following process:
+
+1. **Fixed HumanEval Dataset Issue**
+   - Error: `ConnectionError: Couldn't reach 'openai/openai_humaneval' on the Hub`
+   - Solution: Updated `scripts/download_after_basetraining.sh` to include HumanEval dataset
+   - Script ran successfully on ptolemy-devel-1 to pre-download the dataset
+
+2. **Successful Resume from Midtraining**
+   - Commented out midtraining step in `scripts/resume_mid_sft.slurm` (already completed)
+   - Re-ran evaluation step successfully (now had HumanEval dataset cached)
+   - SFT (Supervised Fine-Tuning) completed successfully
+
+3. **Model Chat Functionality Working**
+   - Successfully tested with: `python -m scripts.chat_cli -p "Hello"`
+   - Model responds correctly with conversational output
+   - All checkpoints created successfully
+
+**Results:**
+- ✅ Midtraining evaluation: Passed (with all datasets including HumanEval)
+- ✅ SFT phase: Completed
+- ✅ Chat CLI: Working perfectly
+
+---
 
 ### ✅ COMPLETED TASKS
 
