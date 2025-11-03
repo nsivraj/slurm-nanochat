@@ -71,9 +71,17 @@ Track your progress as you implement each component:
 
 ---
 
-## Training Command
+## Training Commands
 
-Quick iteration (single step):
+Quick iteration script (recommended):
+```bash
+bash scripts/local_cpu_own_gpt_transformer.sh
+```
+
+**First run**: Automatically downloads data (~400MB) and trains tokenizer (~10-15 min)
+**Subsequent runs**: 10-30 seconds per iteration
+
+Or run the command directly:
 ```bash
 python -m scripts.base_train \
     --depth=4 \

@@ -14,6 +14,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - Complete structure mirroring `nanochat/gpt.py` with `NotImplementedError` placeholders
   - Comprehensive debug print statements showing execution flow
   - TODO comments explaining what to implement at each step
+- `scripts/local_cpu_own_gpt_transformer.sh` - Quick iteration script for learning
+  - Runs single training iteration (10-30 seconds)
+  - **Automatically downloads data and trains tokenizer** on first run (~15-20 min)
+  - Shows debug output and implementation errors
+  - Handles environment setup automatically
+  - Provides helpful feedback on success/failure
+  - No manual setup required - just run and start implementing!
 - `docs/how-to/03-how-to-write-your-own-gpt-transformer.md` - Complete implementation guide
   - Step-by-step workflow for iterative development
   - Implementation order based on execution flow

@@ -18,10 +18,17 @@ This hands-on approach helps you:
 
 ## Prerequisites
 
-Before starting, make sure you have:
-1. Completed the [Local CPU Quickstart](../tutorials/01-local-cpu-quickstart.md)
-2. Verified your environment is working
-3. Basic understanding of PyTorch and neural networks
+Before starting, you need:
+1. **Python 3.10+** and basic PyTorch knowledge
+2. **~500MB disk space** for data and tokenizer
+3. **15-20 minutes** for first-time setup (automatic)
+
+The script will automatically:
+- Download training data (~400MB) if needed
+- Train the tokenizer (~10-15 minutes) if needed
+- Set up the Python environment
+
+No need to run the full training pipeline first!
 
 ---
 
@@ -45,6 +52,12 @@ All imports have been updated to use `normans_gpt` instead of `gpt`:
 ### Step 1: Run the Training Script
 
 Start with a quick training iteration:
+
+```bash
+bash scripts/local_cpu_own_gpt_transformer.sh
+```
+
+Or run the command directly:
 
 ```bash
 python -m scripts.base_train \
