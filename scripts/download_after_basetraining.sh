@@ -69,15 +69,27 @@ print(f"Using HuggingFace cache: {hf_home}")
 print()
 
 datasets_to_download = [
-    # Midtraining datasets
-    ("MMLU (midtraining)", "cais/mmlu", "auxiliary_train", "train"),
-    ("GSM8K (midtraining)", "openai/gsm8k", "main", "train"),
-    ("SmolTalk (midtraining)", "HuggingFaceTB/smol-smoltalk", "default", "train"),
+    # Midtraining datasets (training)
+    ("MMLU auxiliary_train (midtraining train)", "cais/mmlu", "auxiliary_train", "train"),
+    ("GSM8K (midtraining train)", "openai/gsm8k", "main", "train"),
+    ("SmolTalk (midtraining train)", "HuggingFaceTB/smol-smoltalk", None, "train"),
 
-    # SFT datasets
-    ("ARC (SFT)", "allenai/ai2_arc", "ARC-Easy", "train"),
-    ("GSM8K (SFT)", "openai/gsm8k", "main", "train"),
-    ("SmolTalk (SFT)", "HuggingFaceTB/smol-smoltalk", "default", "train"),
+    # Midtraining datasets (validation)
+    ("MMLU all (midtraining validation)", "cais/mmlu", "all", "test"),
+    ("GSM8K (midtraining validation)", "openai/gsm8k", "main", "test"),
+    ("SmolTalk (midtraining validation)", "HuggingFaceTB/smol-smoltalk", None, "test"),
+
+    # SFT datasets (training)
+    ("ARC-Easy (SFT train)", "allenai/ai2_arc", "ARC-Easy", "train"),
+    ("ARC-Challenge (SFT train)", "allenai/ai2_arc", "ARC-Challenge", "train"),
+    ("GSM8K (SFT train)", "openai/gsm8k", "main", "train"),
+    ("SmolTalk (SFT train)", "HuggingFaceTB/smol-smoltalk", None, "train"),
+
+    # SFT datasets (validation)
+    ("SmolTalk (SFT validation)", "HuggingFaceTB/smol-smoltalk", None, "test"),
+
+    # Evaluation datasets
+    ("HumanEval (evaluation)", "openai/openai_humaneval", None, "test"),
 ]
 
 download_count = 0
@@ -102,40 +114,32 @@ for name, dataset_id, subset, split in datasets_to_download:
 
     print(f"[{download_count + cached_count + error_count + 1}/{len(datasets_to_download)}] Processing {name}...")
     print(f"  Dataset: {dataset_id}")
-    if subset:
+    if subset and subset != "None":
         print(f"  Subset: {subset}")
     print(f"  Split: {split}")
 
-    # Check if already cached
-    cache_path = os.path.join(hf_home, "datasets", dataset_id.replace('/', '___'))
-    if os.path.exists(cache_path):
-        print(f"  ✓ Already cached (skipping download)")
+    # Try to load the dataset (will use cache if available, download if not)
+    # Use explicit kwargs pattern to handle optional 'name' parameter correctly
+    try:
+        load_args = {
+            "path": dataset_id,
+            "split": split
+        }
+
+        # Only add 'name' parameter if subset is meaningful (not None or "None")
+        if subset is not None and subset != "None":
+            load_args["name"] = subset
+
+        ds = load_dataset(**load_args)
+
+        print(f"  ✓ Successfully loaded {name}")
+        print(f"    Rows: {len(ds):,}")
+        cache_path = os.path.join(hf_home, "datasets", dataset_id.replace('/', '___'))
         print(f"    Cached at: {cache_path}/")
         download_count += 1
-        print()
-        continue
-
-    # Try to download
-    try:
-        if subset:
-            ds = load_dataset(dataset_id, subset, split=split)
-        else:
-            ds = load_dataset(dataset_id, split=split)
-
-        print(f"  ✓ Successfully downloaded {name}")
-        print(f"    Rows: {len(ds):,}")
-        print(f"    Cached at: {hf_home}/datasets/{dataset_id.replace('/', '___')}/")
-        download_count += 1
     except Exception as e:
-        # Check again if it was cached during the failed download attempt
-        if os.path.exists(cache_path):
-            print(f"  ⚠️  Download had errors but dataset is cached: {e}")
-            print(f"  ✓ Dataset is usable from cache")
-            print(f"    Cached at: {cache_path}/")
-            download_count += 1
-        else:
-            print(f"  ❌ Failed to download {name}: {e}")
-            error_count += 1
+        print(f"  ❌ Failed to load/download {name}: {e}")
+        error_count += 1
 
     print()
 

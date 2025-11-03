@@ -15,10 +15,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added - Critical Dataset Support
 - **NEW REQUIREMENT**: Additional datasets required for midtraining and SFT
   - `scripts/download_after_basetraining.sh` - Downloads all midtraining/SFT datasets
-  - MMLU (auxiliary_train) - For midtraining
+  - MMLU (auxiliary_train) - For midtraining training
+  - MMLU (all) - For midtraining validation
   - GSM8K (main) - For midtraining and SFT
   - SmolTalk (default) - For midtraining and SFT (uses cached version)
   - ARC (ARC-Easy) - For SFT
+  - ARC (ARC-Challenge) - For SFT
   - English word list (words_alpha.txt) - For SpellingBee task in midtraining
 - `scripts/resume_mid_sft.slurm` - Resume training from midtraining phase
   - Skips base training (saves ~7 hours)
@@ -33,10 +35,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Updated troubleshooting guide with dataset errors
 
 ### Fixed - Dataset Download Issues
-- Fixed `download_after_basetraining.sh` to check cache before downloading
+- Fixed `download_after_basetraining.sh` to properly verify dataset configs are cached
+  - Previously: Only checked if dataset directory exists (missed different configs)
+  - Now: Actually loads each dataset to verify the specific config is cached
+  - This fixes false "already cached" messages when only some configs were downloaded
+- Fixed SmolTalk dataset loading using kwargs pattern with explicit parameter names
+  - Issue: `None` subset was being passed as positional argument causing "dataclass" error
+  - Solution: Use `load_dataset(path=..., name=..., split=...)` with conditional name parameter
+  - Thanks to Zen AI analysis for identifying the root cause
+- Added missing MMLU "all" config for midtraining validation (was causing job failures)
+- Added missing ARC-Challenge config for SFT
+- Added missing GSM8K test split for midtraining validation
+- Added missing SmolTalk test split for midtraining and SFT validation
+- Added English word list download for SpellingBee task
+- Fixed NANOCHAT_BASE_DIR not being set (caused word list to fail)
 - Handles already-cached datasets gracefully (no false errors)
 - Skips duplicate dataset entries automatically
-- Added English word list download for SpellingBee task
 - Improved error messages and verification
 
 ### Changed - Documentation
