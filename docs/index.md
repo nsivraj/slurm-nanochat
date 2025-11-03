@@ -37,6 +37,7 @@ Step-by-step guides for getting started:
 Practical guides for specific tasks:
 - [Setup Environment](how-to/setup-environment.md) - Complete setup for all platforms
 - [Run a Training Job](how-to/run-a-training-job.md) - Submit and monitor training
+- [Write Your Own GPT Transformer](how-to/03-how-to-write-your-own-gpt-transformer.md) - Learn by implementing ⭐
 - [Troubleshoot Common Issues](how-to/troubleshoot-common-issues.md) - Fix common problems
 - [Analyze Results](how-to/analyze-results.md) - Understand your training outputs
 
@@ -75,6 +76,7 @@ Technical specifications and API details:
 #### Week 2: Train & Study
 1. **Submit job**: Use [Run a Training Job](how-to/run-a-training-job.md)
 2. **Study code**: While training runs (~12 hours)
+   - **Deep learning option**: [Write Your Own GPT](how-to/03-how-to-write-your-own-gpt-transformer.md) ⭐
    - `nanochat/gpt.py` - Transformer architecture
    - `scripts/base_train.py` - Training loop
    - `nanochat/tokenizer.py` - BPE tokenization
