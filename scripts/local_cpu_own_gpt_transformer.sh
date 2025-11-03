@@ -158,7 +158,7 @@ else
 fi
 
 # Check if tokenizer exists
-TOKENIZER_FILE="$NANOCHAT_BASE_DIR/tokenizer.pkl"
+TOKENIZER_FILE="$NANOCHAT_BASE_DIR/tokenizer/tokenizer.pkl"
 if [ ! -f "$TOKENIZER_FILE" ]; then
     echo ""
     echo "⚠️  Tokenizer not found"
