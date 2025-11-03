@@ -165,6 +165,31 @@ bash scripts/local_cpu_train.sh
 - `n_head`: Calculated from model_dim (line 90)
 - All values flow into `GPTConfig(**model_config_kwargs)` (line 108)
 
+**Q: Why is `n_embd = depth * 64`? Where does 64 come from?**
+- The `64` is called the **aspect ratio** (depth-to-width ratio)
+- **Not mathematically derived** - it's an empirical design choice (hyperparameter)
+- Aspect ratio controls the relationship between:
+  - **Depth**: How many layers (vertical)
+  - **Width**: How big each layer is (horizontal)
+- **Why 64 specifically?**
+  - ✅ Well-tested by research community
+  - ✅ Good balance between depth and width
+  - ✅ Works well in practice across many model sizes
+  - ✅ Powers of 2 are efficient for hardware (64, 128, 256)
+- **Not magic!** Aspect ratio 60 or 70 would probably work fine too
+- Different model sizes use different aspect ratios:
+  - Small models: 64 (our case: 4 layers × 64 = 256 dim)
+  - Medium models: 64-96 (GPT-2: 12 layers × 64 = 768 dim)
+  - Large models: 96-128 (GPT-3: 96 layers × 128 = 12,288 dim)
+- **Trade-offs**:
+  - Small aspect ratio (deep & narrow): More hierarchical, harder to train
+  - Large aspect ratio (shallow & wide): Easier to train, less hierarchical
+  - 64 is the sweet spot found through experimentation
+- **Key insight**: Neural network architecture is part art, part science!
+  - Many values are hyperparameters (chosen empirically)
+  - Not derived from mathematical formulas
+  - Found through experimentation and research
+
 **Key Learnings - Tokenization**:
 
 **Q: What does tokenizer training do?**
@@ -265,6 +290,8 @@ bash scripts/local_cpu_train.sh
 - We can't easily explain WHY the model learns what it does
 - Trust the optimization process to discover useful patterns
 - This is the beauty and mystery of neural networks!
+- **Architecture is part art, part science**: Many design choices (like aspect ratio 64) are empirical, not mathematically optimal
+- Hyperparameters are chosen through experimentation, not pure theory
 
 **Next session goals**:
 - Implement `Block.__init__`
@@ -314,6 +341,7 @@ As you implement, document answers to these questions:
 - [x] **What is `nn.ModuleDict`?** → Smart dictionary that tracks neural network modules for PyTorch
 - [x] **What is `vocab_size`?** → Number of unique tokens (65,536), from tokenizer
 - [x] **What is `n_embd`?** → Embedding dimension (256), size of vector per token
+- [x] **Why `n_embd = depth * 64`?** → 64 is the "aspect ratio" (depth-to-width), empirical design choice
 - [x] **How are tokens converted to vectors?** → Lookup table (`nn.Embedding`), just indexing
 - [x] **When do embeddings learn?** → Every training iteration via backpropagation
 - [x] **What do the embedding dimensions represent?** → Abstract learned patterns (distributed representations)
