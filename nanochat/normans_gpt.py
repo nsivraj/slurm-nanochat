@@ -25,6 +25,7 @@ from nanochat.common import get_dist_info, print0
 from nanochat.muon import Muon, DistMuon
 from nanochat.adamw import DistAdamW
 
+
 @dataclass
 class GPTConfig:
     """
@@ -38,11 +39,12 @@ class GPTConfig:
     - n_kv_head: number of key/value heads for MQA (default: 6)
     - n_embd: embedding dimension (default: 768)
     """
+
     sequence_len: int = 1024
     vocab_size: int = 50304
     n_layer: int = 12
-    n_head: int = 6 # number of query heads
-    n_kv_head: int = 6 # number of key/value heads (MQA)
+    n_head: int = 6  # number of query heads
+    n_kv_head: int = 6  # number of key/value heads (MQA)
     n_embd: int = 768
 
 
@@ -59,7 +61,9 @@ def norm(x):
     DEBUG: This function is called before every attention and MLP layer
     """
     print0(f"[DEBUG] norm() called with input shape: {x.shape}")
-    raise NotImplementedError("TODO: Implement norm() using F.rms_norm(x, (x.size(-1),))")
+    raise NotImplementedError(
+        "TODO: Implement norm() using F.rms_norm(x, (x.size(-1),))"
+    )
 
 
 def apply_rotary_emb(x, cos, sin):
@@ -100,6 +104,7 @@ class CausalSelfAttention(nn.Module):
     5. Compute scaled dot-product attention
     6. Project back to embedding dimension
     """
+
     def __init__(self, config, layer_idx):
         super().__init__()
         print0(f"[DEBUG] Initializing CausalSelfAttention for layer {layer_idx}")
@@ -107,7 +112,9 @@ class CausalSelfAttention(nn.Module):
         raise NotImplementedError("TODO: Implement CausalSelfAttention.__init__")
 
     def forward(self, x, cos_sin, kv_cache):
-        print0(f"[DEBUG] CausalSelfAttention.forward() called for layer {self.layer_idx}")
+        print0(
+            f"[DEBUG] CausalSelfAttention.forward() called for layer {self.layer_idx}"
+        )
         print0(f"[DEBUG]   Input shape: {x.shape}")
         raise NotImplementedError("TODO: Implement CausalSelfAttention.forward")
 
@@ -126,6 +133,7 @@ class MLP(nn.Module):
     2. Apply relu activation and square it (relu^2)
     3. Apply second linear layer
     """
+
     def __init__(self, config):
         super().__init__()
         print0(f"[DEBUG] Initializing MLP")
@@ -149,6 +157,7 @@ class Block(nn.Module):
     1. Apply attention with pre-norm and residual connection
     2. Apply MLP with pre-norm and residual connection
     """
+
     def __init__(self, config, layer_idx):
         super().__init__()
         print0(f"[DEBUG] Initializing Block {layer_idx}")
@@ -172,6 +181,7 @@ class GPT(nn.Module):
     5. setup_optimizers: Create Muon and AdamW optimizers
     6. generate: Autoregressive text generation (optional for basic training)
     """
+
     def __init__(self, config):
         super().__init__()
         print0(f"[DEBUG] ========================================")
@@ -183,8 +193,44 @@ class GPT(nn.Module):
         print0(f"[DEBUG]   vocab_size: {config.vocab_size}")
         print0(f"[DEBUG]   sequence_len: {config.sequence_len}")
         print0(f"[DEBUG] ========================================")
+
+        # Store config for later use
         self.config = config
-        raise NotImplementedError("TODO: Implement GPT.__init__ - create transformer dict with wte and h, create lm_head, setup rotary embeddings")
+
+        # Create the main transformer components
+        # ModuleDict is like a dictionary but registers modules properly
+        self.transformer = nn.ModuleDict(
+            {
+                # wte = Word Token Embeddings: maps token IDs (0-vocab_size) to embedding vectors
+                "wte": nn.Embedding(config.vocab_size, config.n_embd),
+                # h = Hidden layers: stack of transformer blocks
+                "h": nn.ModuleList(
+                    [Block(config, layer_idx) for layer_idx in range(config.n_layer)]
+                ),
+            }
+        )
+
+        # # Language modeling head: projects embeddings back to vocabulary logits
+        # # No bias needed - this is common in modern transformers
+        # self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
+
+        # # Rotary embeddings: precompute cos/sin for positional encoding
+        # # We overallocate by 10x to handle sequences longer than config.sequence_len
+        # # This is cheaper than dynamically growing the cache during training
+        # self.rotary_seq_len = config.sequence_len * 10  # 10x buffer
+        # head_dim = config.n_embd // config.n_head
+
+        # # Precompute the rotary embedding matrices
+        # cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+
+        # # Register as buffers (not parameters): they move with the model but aren't trained
+        # # persistent=False means they're not saved in checkpoints (can be recomputed)
+        # self.register_buffer("cos", cos, persistent=False)
+        # self.register_buffer("sin", sin, persistent=False)
+
+        # print0(f"[DEBUG] GPT.__init__ complete!")
+        # print0(f"[DEBUG]   Created {config.n_layer} transformer blocks")
+        # print0(f"[DEBUG]   Rotary cache size: {self.rotary_seq_len} positions")
 
     def init_weights(self):
         """Initialize model weights."""
@@ -205,14 +251,18 @@ class GPT(nn.Module):
     def get_device(self):
         """Get the device the model is on."""
         print0(f"[DEBUG] get_device() called")
-        raise NotImplementedError("TODO: Implement GPT.get_device - return device of wte embeddings")
+        raise NotImplementedError(
+            "TODO: Implement GPT.get_device - return device of wte embeddings"
+        )
 
     def estimate_flops(self):
         """Estimate FLOPs per token."""
         print0(f"[DEBUG] estimate_flops() called")
         raise NotImplementedError("TODO: Implement GPT.estimate_flops")
 
-    def setup_optimizers(self, unembedding_lr=0.004, embedding_lr=0.2, matrix_lr=0.02, weight_decay=0.0):
+    def setup_optimizers(
+        self, unembedding_lr=0.004, embedding_lr=0.2, matrix_lr=0.02, weight_decay=0.0
+    ):
         """
         Setup Muon optimizer for linear layers and AdamW for embeddings/lm_head.
 
@@ -229,7 +279,7 @@ class GPT(nn.Module):
         print0(f"[DEBUG]   matrix_lr: {matrix_lr}")
         raise NotImplementedError("TODO: Implement GPT.setup_optimizers")
 
-    def forward(self, idx, targets=None, kv_cache=None, loss_reduction='mean'):
+    def forward(self, idx, targets=None, kv_cache=None, loss_reduction="mean"):
         """
         Forward pass through the model.
 
@@ -260,4 +310,6 @@ class GPT(nn.Module):
         This is only needed for generation, not for training
         """
         print0(f"[DEBUG] generate() called")
-        raise NotImplementedError("TODO: Implement GPT.generate (optional - not needed for basic training)")
+        raise NotImplementedError(
+            "TODO: Implement GPT.generate (optional - not needed for basic training)"
+        )
