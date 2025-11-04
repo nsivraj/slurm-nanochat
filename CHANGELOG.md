@@ -51,6 +51,30 @@ This workflow enables hands-on learning by:
 
 **Goal**: Understand transformers by implementing them, not just reading code.
 
+### Implementation Progress (2025-11-03)
+- ✅ **GPT.__init__** - Implemented model architecture setup
+  - Created transformer ModuleDict with embeddings (wte) and blocks (h)
+  - Created language modeling head (lm_head)
+  - Setup rotary embedding buffers
+- ✅ **Block.__init__** - Implemented transformer block initialization
+  - Created CausalSelfAttention layer
+  - Created MLP layer
+  - Added comprehensive comments explaining each component
+- ✅ **Deep Learning Sessions** - Extensive Q&A documented in learning status
+  - Understood PyTorch basics (nn, ModuleDict, Embedding)
+  - Understood tokenization (BPE algorithm, vocab_size)
+  - Understood embeddings (lookup tables, distributed representations)
+  - Understood architecture (depth, aspect ratio, hierarchical learning)
+  - Understood data flow (matrix dimensions, sequence length, residual connections)
+  - Understood max_seq_len impact (long-range learning vs embedding quality)
+- **Next to implement**: CausalSelfAttention.__init__ and MLP.__init__
+
+### Bug Fixes (2025-11-03)
+- Fixed tokenizer path in `scripts/local_cpu_own_gpt_transformer.sh`
+  - Changed from `$NANOCHAT_BASE_DIR/tokenizer.pkl`
+  - To `$NANOCHAT_BASE_DIR/tokenizer/tokenizer.pkl`
+  - Prevents unnecessary tokenizer retraining
+
 ---
 
 ## [2025-11-01] - Dataset Requirements & Resume Training

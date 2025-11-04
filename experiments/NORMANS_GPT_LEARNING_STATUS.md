@@ -6,6 +6,48 @@
 
 ---
 
+## 🎯 WHERE TO RESUME (Start Here Tomorrow!)
+
+**Current Status**: Model initialization partially complete
+
+**What's Been Implemented**:
+- ✅ `GPT.__init__` - Model architecture (embeddings, blocks, lm_head, rotary buffers)
+- ✅ `Block.__init__` - Transformer block (attention + MLP components)
+
+**Next Steps to Implement**:
+1. **`CausalSelfAttention.__init__`** - Will be the next error when you run the script
+2. **`MLP.__init__`** - Will follow after attention
+3. Then continue with the forward pass methods
+
+**How to Resume**:
+```bash
+# Run the quick iteration script
+bash scripts/local_cpu_own_gpt_transformer.sh
+
+# You'll see:
+# [DEBUG] Initializing CausalSelfAttention for layer 0
+# NotImplementedError: TODO: Implement CausalSelfAttention.__init__
+
+# Then implement it in nanochat/normans_gpt.py
+# Reference: nanochat/gpt.py lines 69-81
+```
+
+**Key Learnings So Far**:
+- Understood PyTorch basics (nn, ModuleDict, Embedding)
+- Understood tokenization (BPE, 65,536 vocab)
+- Understood embeddings (lookup table, 256 dimensions)
+- Understood architecture (4 layers, aspect ratio 64)
+- Understood data flow (B, 512, 256) through blocks
+- Understood Block structure (Attention + MLP)
+
+**Quick Reference**:
+- **Implementation file**: `nanochat/normans_gpt.py`
+- **Reference file**: `nanochat/gpt.py`
+- **Learning doc**: This file
+- **How-to guide**: `docs/how-to/03-how-to-write-your-own-gpt-transformer.md`
+
+---
+
 ## Overview
 
 This document tracks progress on implementing `nanochat/normans_gpt.py` - a ground-up rewrite of the GPT transformer to learn by doing.
