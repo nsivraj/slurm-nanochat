@@ -190,6 +190,37 @@ bash scripts/local_cpu_train.sh
   - Not derived from mathematical formulas
   - Found through experimentation and research
 
+**Q: Why create n_layer Block instances? Why not just one?**
+- **Each Block is one complete transformer layer** (attention + MLP)
+- We stack `n_layer` blocks to create a **deep network**
+- **Sequential processing**: Data flows through blocks one at a time
+  ```
+  Input → [Block 0] → [Block 1] → [Block 2] → [Block 3] → Output
+  ```
+- **Hierarchical learning**: Each layer learns different abstraction levels
+  - Block 0: Basic patterns ("the" often precedes nouns)
+  - Block 1: Grammar (subject-verb agreement)
+  - Block 2: Semantics (word meanings, relationships)
+  - Block 3: Complex patterns (complete understanding)
+- **Why depth matters**: More layers = more powerful model
+  - 1 layer: Very limited (can only learn simple patterns)
+  - 4 layers: Basic understanding (our learning model)
+  - 12 layers: Good understanding (GPT-2 small)
+  - 96 layers: Exceptional understanding (GPT-3)
+- **How it works in code**:
+  ```python
+  # Create 4 blocks
+  "h": nn.ModuleList([Block(config, 0), Block(config, 1), Block(config, 2), Block(config, 3)])
+
+  # Process data through all blocks sequentially
+  for block in self.transformer.h:
+      x = block(x, cos_sin, kv_cache)  # Each block refines the representation
+  ```
+- **All blocks have same architecture** but learn different things because they process data at different pipeline stages
+- **Industry standard**: All transformers (GPT, BERT, LLaMA) use stacked layers
+- **Think of it like**: Photo filters stacked - each transformation builds on the previous one
+- **For learning**: 4 layers is perfect (fast, small, demonstrates concepts)
+
 **Key Learnings - Tokenization**:
 
 **Q: What does tokenizer training do?**
@@ -342,6 +373,7 @@ As you implement, document answers to these questions:
 - [x] **What is `vocab_size`?** → Number of unique tokens (65,536), from tokenizer
 - [x] **What is `n_embd`?** → Embedding dimension (256), size of vector per token
 - [x] **Why `n_embd = depth * 64`?** → 64 is the "aspect ratio" (depth-to-width), empirical design choice
+- [x] **Why create n_layer Block instances?** → Stack layers for hierarchical learning, depth = power
 - [x] **How are tokens converted to vectors?** → Lookup table (`nn.Embedding`), just indexing
 - [x] **When do embeddings learn?** → Every training iteration via backpropagation
 - [x] **What do the embedding dimensions represent?** → Abstract learned patterns (distributed representations)
