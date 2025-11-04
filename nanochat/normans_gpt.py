@@ -161,7 +161,25 @@ class Block(nn.Module):
     def __init__(self, config, layer_idx):
         super().__init__()
         print0(f"[DEBUG] Initializing Block {layer_idx}")
-        raise NotImplementedError("TODO: Implement Block.__init__")
+
+        # Each transformer block has two main components:
+
+        # 1. Self-Attention: Allows the model to look at other positions in the sequence
+        #    - "Causal" means it can only look at previous positions (left-to-right)
+        #    - This is where the model learns relationships between tokens
+        #    - Example: In "The cat sat on the", when processing "sat", attention
+        #      can look back at "The" and "cat" to understand the subject
+        self.attn = CausalSelfAttention(config, layer_idx)
+
+        # 2. MLP (Multi-Layer Perceptron): Processes each position independently
+        #    - Takes the output from attention and transforms it
+        #    - Expands to 4x size internally (more capacity to learn patterns)
+        #    - Then projects back to original size
+        #    - This is where the model learns non-linear transformations
+        self.mlp = MLP(config)
+
+        # NOTE: We don't store layer_idx because we don't need it in forward()
+        # The attention layer stores it for debugging purposes
 
     def forward(self, x, cos_sin, kv_cache):
         print0(f"[DEBUG] Block.forward() called")

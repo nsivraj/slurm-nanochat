@@ -42,10 +42,10 @@ NotImplementedError: TODO: Implement GPT.__init__ - create transformer dict with
 Track your progress as you implement each component:
 
 #### Phase 1: Model Initialization
-- [ ] `GPTConfig` dataclass (already complete)
-- [ ] `GPT.__init__` - Model architecture setup
+- [x] `GPTConfig` dataclass (already complete)
+- [x] `GPT.__init__` - Model architecture setup
 - [ ] `GPT._precompute_rotary_embeddings` - Rotary embedding cache
-- [ ] `Block.__init__` - Transformer block initialization
+- [x] `Block.__init__` - Transformer block initialization
 - [ ] `CausalSelfAttention.__init__` - Attention layer initialization
 - [ ] `MLP.__init__` - Feed-forward network initialization
 
@@ -329,6 +329,254 @@ bash scripts/local_cpu_train.sh
 - Understand transformer block architecture
 - Continue building up the model step by step
 
+### Session 2025-11-03: Block Architecture and Data Flow
+
+**What was accomplished**:
+- ✅ Implemented `Block.__init__` successfully
+- ✅ Understood matrix dimensions through transformer blocks
+- ✅ Clarified what "512 tokens" means in the architecture
+- ✅ Deep dive into max_seq_len and its impact on learning
+
+**Key Learnings - Block Architecture**:
+
+**Q: What does Block.__init__ create?**
+```python
+def __init__(self, config, layer_idx):
+    super().__init__()
+
+    # 1. Self-Attention: Looks at relationships between tokens
+    self.attn = CausalSelfAttention(config, layer_idx)
+
+    # 2. MLP: Processes each position independently
+    self.mlp = MLP(config)
+```
+
+- **Two components per block**: Attention + MLP
+- **Attention**: Gathers information from other positions in sequence
+  - "Causal" = can only look at previous positions (left-to-right)
+  - Example: Processing "sat" can look back at "The" and "cat"
+  - Learns relationships between tokens
+- **MLP**: Transforms each position independently
+  - Expands to 4x size internally (more learning capacity)
+  - Projects back to original size
+  - Applies non-linear transformations
+- **This pattern repeats**: With n_layer=4, we have 4 identical Block structures stacked
+
+**Q: Why need BOTH attention and MLP?**
+- **Attention** = Information gathering (communicate between positions)
+- **MLP** = Information processing (transform what was gathered)
+- Without attention: No communication between tokens (each processed in isolation)
+- Without MLP: Only linear transformations (limited learning capacity)
+- Together: Powerful combination that enables language understanding
+
+**Key Learnings - Matrix Dimensions**:
+
+**Q: What are the matrix dimensions through the transformer blocks?**
+
+With our config (`depth=4`, so `n_embd=256`, `n_layer=4`, `max_seq_len=512`):
+
+```
+Input token IDs:     (batch_size, 512)
+                            ↓
+Token Embedding (wte):  (B, 512, 256)
+                            ↓
+Apply norm:             (B, 512, 256)
+                            ↓
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BLOCK 0
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Input:                  (B, 512, 256)
+  → norm → Attention:   (B, 512, 256)
+  → Residual:           (B, 512, 256)
+  → norm → MLP:         (B, 512, 256)
+  → Residual:           (B, 512, 256)
+Output:                 (B, 512, 256)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BLOCK 1, 2, 3: Same dimensions
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                            ↓
+Final norm:             (B, 512, 256)
+                            ↓
+lm_head projection:     (B, 512, 65536)
+```
+
+**Critical insight**: Dimensions stay **(B, 512, 256) through ALL blocks!**
+
+**Why constant dimensions?**
+- Enables residual connections: `x = x + attn(x)` requires same shape
+- Each layer refines representation without changing size
+- Only changes at final projection to vocabulary
+
+**Inside Attention (dimensions change temporarily)**:
+```
+Input:              (B, 512, 256)
+  → Project to Q:   (B, 512, 256)
+  → Project to K:   (B, 512, 256)
+  → Project to V:   (B, 512, 256)
+  → Reshape heads:  (B, 512, n_head=2, head_dim=128)
+  → Attention:      (B, 512, 2, 128)
+  → Reshape back:   (B, 512, 256)
+  → c_proj:         (B, 512, 256)
+Output:             (B, 512, 256)
+```
+
+**Inside MLP (expands then contracts)**:
+```
+Input:              (B, 512, 256)
+  → c_fc (expand):  (B, 512, 1024)  # 256 * 4
+  → relu^2:         (B, 512, 1024)
+  → c_proj:         (B, 512, 256)   # Back to n_embd
+Output:             (B, 512, 256)
+```
+
+**Key Learnings - What Are "512 Tokens"?**:
+
+**Q: What does "512 tokens" mean in the architecture?**
+- The **512** comes from `--max_seq_len=512` parameter
+- It means processing **sequences of 512 tokens at a time**
+- NOT 512 different words - it's the sequence length
+
+**Concrete example**:
+```
+Text: "The cat sat on the mat. The dog ran in the park."
+
+After tokenization:
+Token IDs: [150, 8901, 23456, 891, 150, 4567, 19, ...]
+           ↑                                        ↑
+           Token 0                              Token 13
+           (14 tokens total)
+
+But model expects 512 tokens, so dataloader combines sentences:
+[sentence1_tokens] + [sentence2_tokens] + [sentence3_tokens] + ...
+= [tok0, tok1, tok2, ..., tok511]  ← 512 token IDs total
+```
+
+**Shape breakdown**:
+```python
+# (batch_size, sequence_length, embedding_dim)
+tensor.shape = (B, 512, 256)
+
+# What each dimension means:
+# B:    How many sequences in parallel (batch)
+# 512:  How many tokens in each sequence (max_seq_len)
+# 256:  Size of vector for each token (n_embd)
+```
+
+**Example with batch_size=2**:
+```
+Sequence 1: "The cat sat..." (512 tokens)
+Sequence 2: "Dogs run fast..." (512 tokens)
+
+Shape: (2, 512, 256)
+       ↑  ↑    ↑
+       │  │    └─ 256-dim vector per token
+       │  └────── 512 tokens per sequence
+       └───────── 2 sequences in this batch
+```
+
+**Key Learnings - Does max_seq_len Improve Learning?**:
+
+**Q: Does increasing max_seq_len improve learning or embedding quality?**
+
+**Short answer**:
+- ✅ Improves **long-range pattern learning**
+- ❌ Does NOT directly improve **embedding quality**
+- ⚠️ Costs **quadratically more** compute and memory
+
+**What improves with longer sequences**:
+
+**1. Long-Range Dependencies** ✅
+```
+max_seq_len=512:
+"The cat [400 tokens]. It meowed."
+ ↑                        ↑
+ Token 0              Token 450
+
+Attention CAN connect "cat" and "meowed" ✅
+
+max_seq_len=128:
+Chunk 1: "The cat [100 tokens]"
+Chunk 2: "[...] It meowed."
+
+Attention CANNOT see "cat" from different chunk ❌
+```
+
+**2. Embedding Quality** ❌ Not directly affected
+```
+Token "cat" learns from ALL occurrences during training:
+- Sequence 1: "The cat sat"
+- Sequence 2: "A cat ran"
+- Sequence 3: "Cats are animals"
+... thousands more ...
+
+Embeddings learn from LOCAL context (nearby tokens),
+not from being in longer sequences.
+```
+
+**3. Trade-offs**:
+
+| Aspect | max_seq_len=128 | max_seq_len=512 | max_seq_len=1024 |
+|--------|----------------|----------------|------------------|
+| Training Speed | ✅ Fast | Medium | ❌ Slow (4x) |
+| Memory Usage | ✅ Low | Medium | ❌ High (4x) |
+| Long-range Learning | ❌ Poor | ✅ Good | ✅✅ Excellent |
+| Short-range Learning | ✅ Same | ✅ Same | ✅ Same |
+| Embedding Quality | ✅ Same | ✅ Same | ✅ Same |
+| Good For | Quick iteration | Balanced | Production |
+
+**What ACTUALLY improves embeddings**:
+1. ✅ **More training data** - More examples in different contexts
+2. ✅ **More iterations** - More gradient updates to refine vectors
+3. ✅ **Better architecture** - Deeper networks, better normalization
+4. ⚠️ **Longer sequences** - Indirect benefit only (better model overall)
+
+**Why 512 for learning?**
+- **Fast enough**: 30 seconds per iteration (vs minutes for 1024)
+- **Not too limited**: Can learn some long-range patterns
+- **Fits in memory**: Works on CPU and small GPUs
+- **Sweet spot**: Balance of speed and capability
+
+**Code understanding example**:
+```python
+# max_seq_len=128 (SHORT)
+def process_data(data):
+    result = []
+# [Chunk boundary - attention can't cross]
+    result.append(item)
+    return result
+
+# Model CANNOT learn that "result.append" relates to "result = []"
+
+# max_seq_len=512 (LONGER)
+def process_data(data):
+    result = []              # Token 10
+    for item in data:
+        # ... 50 lines ...
+        result.append(item)  # Token 200
+    return result            # Token 205
+
+# Model CAN learn relationships within 512 tokens! ✅
+```
+
+**Bottom Line**:
+- **Increasing max_seq_len**: Improves long-context understanding, NOT embedding quality directly
+- **For learning**: Keep 512 for fast iteration
+- **For production**: Use 1024+ where long context is critical
+- **Attention complexity**: O(n²) - doubling sequence length = 4x compute!
+
+**Insights**:
+- The "512" in matrix dimensions means processing 512 tokens simultaneously
+- Each token gets its own 256-dimensional vector that flows through all blocks
+- Dimensions stay constant through blocks to enable residual connections
+- Longer sequences help with long-range patterns, not basic embeddings
+- Architecture choice (512 vs 1024) is about compute vs capability trade-off
+
+**Next session goals**:
+- Implement `CausalSelfAttention.__init__` (next needed component)
+- Implement `MLP.__init__` (next needed component)
+- Understand attention mechanism in detail
+- Get model to fully initialize without errors
+
 ---
 
 ## Debugging Notes
@@ -382,6 +630,11 @@ As you implement, document answers to these questions:
 - [x] **What gets saved after training?** → Weight matrix in `transformer.wte.weight` (65536 x 256)
 
 ### Architecture Questions
+- [x] **What do Block components do?** → Attention gathers info, MLP processes info
+- [x] **Why both attention and MLP?** → Attention = communication, MLP = transformation
+- [x] **Why do dimensions stay constant through blocks?** → Enables residual connections
+- [x] **What does "512 tokens" mean?** → Sequence length (max_seq_len parameter)
+- [x] **Does max_seq_len improve embeddings?** → No, improves long-range learning only
 - [ ] Why untie embedding and lm_head weights?
 - [ ] What's the advantage of Multi-Query Attention?
 - [ ] Why use relu^2 instead of regular relu or GELU?
@@ -428,7 +681,9 @@ Track major achievements:
 - [x] **Setup Complete** (2025-11-03): Skeleton created, imports updated, verified working
 - [x] **GPT.__init__ Implemented** (2025-11-03): Model can create transformer dict, embeddings, lm_head
 - [x] **Deep Understanding** (2025-11-03): Understood embeddings, tokenization, BPE, distributed representations
-- [ ] **Model Initializes**: GPT model can be created without errors (need Block, MLP, Attention)
+- [x] **Block.__init__ Implemented** (2025-11-03): Transformer block creates attention and MLP layers
+- [x] **Data Flow Understanding** (2025-11-03): Matrix dimensions, 512 tokens, max_seq_len impact
+- [ ] **Model Initializes**: GPT model can be created without errors (need CausalSelfAttention, MLP)
 - [ ] **Forward Pass Works**: Can run one forward pass
 - [ ] **Backward Pass Works**: Gradients flow correctly
 - [ ] **Training Step Completes**: One full train step runs
@@ -484,16 +739,21 @@ Track refactorings or improvements made:
 
 ## Next Actions
 
-1. **Implement GPT.__init__**
-   - Create transformer ModuleDict with wte and h
-   - Create lm_head Linear layer
-   - Setup rotary embedding buffers
+1. **Implement CausalSelfAttention.__init__**
+   - Create Q, K, V projection layers
+   - Create output projection (c_proj)
+   - Setup for multi-query attention
 
-2. **Run training again**
-   - See what's needed next
+2. **Implement MLP.__init__**
+   - Create expansion layer (c_fc)
+   - Create contraction layer (c_proj)
+
+3. **Run training again**
+   - Should hit next NotImplementedError
    - Follow the debug output
+   - See initialization complete
 
-3. **Document learnings**
+4. **Document learnings**
    - Update Questions to Answer section
    - Add any issues encountered
    - Record insights in Learning Log
