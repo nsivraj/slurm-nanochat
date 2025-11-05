@@ -3,29 +3,50 @@
 # Quick Iteration Script for Learning GPT Transformer Implementation
 # This script runs a single training iteration to test your normans_gpt.py implementation
 #
-# Usage: bash scripts/local_cpu_own_gpt_transformer.sh
+# Usage:
+#   bash scripts/local_cpu_own_gpt_transformer.sh           # Run once
+#   bash scripts/local_cpu_own_gpt_transformer.sh --watch   # Watch mode
 #
 # Expected runtime: 10-30 seconds per iteration
 # This is for rapid iteration while implementing nanochat/normans_gpt.py
+
+# Parse command line arguments
+WATCH_MODE=false
+if [[ "$1" == "--watch" ]]; then
+    WATCH_MODE=true
+fi
 
 echo "=================================================="
 echo "GPT Transformer Learning - Quick Iteration"
 echo "=================================================="
 echo ""
-echo "This script runs ONE training step to test your"
-echo "normans_gpt.py implementation."
-echo ""
+if [ "$WATCH_MODE" = true ]; then
+    echo "🔄 WATCH MODE ENABLED"
+    echo "   This script will run setup once, then watch"
+    echo "   nanochat/normans_gpt.py for changes and"
+    echo "   automatically re-run training when you save."
+    echo ""
+else
+    echo "This script runs ONE training step to test your"
+    echo "normans_gpt.py implementation."
+    echo ""
+    echo "💡 TIP: Use --watch flag for hot-reload mode!"
+    echo "   bash scripts/local_cpu_own_gpt_transformer.sh --watch"
+    echo ""
+fi
 echo "First-time setup (automatic):"
 echo "  - Downloads training data if needed (~400MB)"
 echo "  - Trains tokenizer if needed (~10-15 min)"
 echo ""
-echo "Learning workflow:"
-echo "  1. Run this script"
-echo "  2. See what NotImplementedError you hit"
-echo "  3. Implement that method in nanochat/normans_gpt.py"
-echo "  4. Run this script again"
-echo "  5. Repeat until training works!"
-echo ""
+if [ "$WATCH_MODE" = false ]; then
+    echo "Learning workflow:"
+    echo "  1. Run this script"
+    echo "  2. See what NotImplementedError you hit"
+    echo "  3. Implement that method in nanochat/normans_gpt.py"
+    echo "  4. Run this script again"
+    echo "  5. Repeat until training works!"
+    echo ""
+fi
 
 # -----------------------------------------------------------------------------
 # Environment Setup
@@ -205,88 +226,146 @@ fi
 export WANDB_RUN=dummy  # Skip wandb logging for quick iteration
 
 # -----------------------------------------------------------------------------
-# Run Single Training Iteration
+# Run Training (Single Iteration or Watch Mode)
 
-echo ""
-echo "=================================================="
-echo "Running ONE Training Iteration"
-echo "=================================================="
-echo ""
-echo "Command:"
-echo "  python -m scripts.base_train \\"
-echo "    --depth=4 \\"
-echo "    --max_seq_len=512 \\"
-echo "    --device_batch_size=1 \\"
-echo "    --eval_tokens=512 \\"
-echo "    --core_metric_every=-1 \\"
-echo "    --total_batch_size=512 \\"
-echo "    --num_iterations=1"
-echo ""
-echo "Watch for [DEBUG] output and NotImplementedError!"
-echo ""
-echo "=================================================="
-echo ""
+# Function to run training
+run_training() {
+    python -m scripts.base_train \
+        --depth=4 \
+        --max_seq_len=512 \
+        --device_batch_size=1 \
+        --eval_tokens=512 \
+        --core_metric_every=-1 \
+        --total_batch_size=512 \
+        --num_iterations=1
+    return $?
+}
 
-# Run the training
-python -m scripts.base_train \
-    --depth=4 \
-    --max_seq_len=512 \
-    --device_batch_size=1 \
-    --eval_tokens=512 \
-    --core_metric_every=-1 \
-    --total_batch_size=512 \
-    --num_iterations=1
-
-TRAIN_EXIT_CODE=$?
-
-# -----------------------------------------------------------------------------
-# Report Results
-
-echo ""
-echo "=================================================="
-echo "Iteration Complete"
-echo "=================================================="
-echo ""
-
-if [ $TRAIN_EXIT_CODE -eq 0 ]; then
-    echo "✅ SUCCESS! Training iteration completed without errors!"
+if [ "$WATCH_MODE" = false ]; then
+    # Original behavior: Run once
     echo ""
-    echo "This means your implementation got past this step."
-    echo "Keep going - implement more methods!"
+    echo "=================================================="
+    echo "Running ONE Training Iteration"
+    echo "=================================================="
     echo ""
-    echo "Next steps:"
-    echo "  1. Check if loss decreased (look for 'loss' in output above)"
-    echo "  2. Run again to test the next iteration"
-    echo "  3. Once several iterations work, try more steps:"
-    echo "     python -m scripts.base_train --depth=4 --max_seq_len=512 \\"
-    echo "       --device_batch_size=1 --eval_tokens=512 --core_metric_every=-1 \\"
-    echo "       --total_batch_size=512 --num_iterations=10"
+    echo "Command:"
+    echo "  python -m scripts.base_train \\"
+    echo "    --depth=4 \\"
+    echo "    --max_seq_len=512 \\"
+    echo "    --device_batch_size=1 \\"
+    echo "    --eval_tokens=512 \\"
+    echo "    --core_metric_every=-1 \\"
+    echo "    --total_batch_size=512 \\"
+    echo "    --num_iterations=1"
+    echo ""
+    echo "Watch for [DEBUG] output and NotImplementedError!"
+    echo ""
+    echo "=================================================="
+    echo ""
+
+    run_training
+    TRAIN_EXIT_CODE=$?
 else
-    echo "❌ Training failed (exit code: $TRAIN_EXIT_CODE)"
+    # Watch mode: Run initially, then watch for changes
     echo ""
-    echo "Look for the error message above."
+    echo "=================================================="
+    echo "🔄 WATCH MODE - Initial Training Run"
+    echo "=================================================="
     echo ""
-    echo "If you see 'NotImplementedError':"
-    echo "  1. Read the error message - it tells you what to implement"
-    echo "  2. Look at the [DEBUG] output to understand the context"
-    echo "  3. Open nanochat/normans_gpt.py"
-    echo "  4. Implement the method mentioned in the error"
-    echo "  5. Run this script again"
+
+    # Check if fswatch is available (macOS)
+    if ! command -v fswatch &> /dev/null; then
+        echo "❌ ERROR: fswatch not found!"
+        echo ""
+        echo "Install it with: brew install fswatch"
+        echo ""
+        echo "After installing, run this script again with --watch flag."
+        exit 1
+    fi
+
+    # Run training once immediately
+    run_training
+    TRAIN_EXIT_CODE=$?
+
     echo ""
-    echo "If you see a different error:"
-    echo "  1. Read the error message and traceback"
-    echo "  2. Check for shape mismatches, device issues, etc."
-    echo "  3. Compare your implementation with nanochat/gpt.py"
-    echo "  4. Add debug prints to understand what's happening"
-    echo "  5. Fix the issue and run again"
+    echo "=================================================="
+    echo "👀 Now watching nanochat/normans_gpt.py"
+    echo "=================================================="
     echo ""
-    echo "For help, see:"
-    echo "  - docs/how-to/03-how-to-write-your-own-gpt-transformer.md"
-    echo "  - experiments/NORMANS_GPT_LEARNING_STATUS.md"
+    echo "Save the file to trigger automatic re-run."
+    echo "Press Ctrl+C to stop watching."
+    echo ""
+
+    # Watch for changes and re-run training
+    fswatch -o nanochat/normans_gpt.py | while read; do
+        echo ""
+        echo "=================================================="
+        echo "🔄 File changed! Re-running training..."
+        echo "=================================================="
+        echo ""
+
+        run_training
+        TRAIN_EXIT_CODE=$?
+
+        echo ""
+        echo "👀 Watching for next change..."
+        echo ""
+    done
 fi
 
-echo ""
-echo "=================================================="
-echo ""
+# -----------------------------------------------------------------------------
+# Report Results (only for non-watch mode)
 
-exit $TRAIN_EXIT_CODE
+if [ "$WATCH_MODE" = false ]; then
+    echo ""
+    echo "=================================================="
+    echo "Iteration Complete"
+    echo "=================================================="
+    echo ""
+
+    if [ $TRAIN_EXIT_CODE -eq 0 ]; then
+        echo "✅ SUCCESS! Training iteration completed without errors!"
+        echo ""
+        echo "This means your implementation got past this step."
+        echo "Keep going - implement more methods!"
+        echo ""
+        echo "Next steps:"
+        echo "  1. Check if loss decreased (look for 'loss' in output above)"
+        echo "  2. Run again to test the next iteration"
+        echo "  3. Once several iterations work, try more steps:"
+        echo "     python -m scripts.base_train --depth=4 --max_seq_len=512 \\"
+        echo "       --device_batch_size=1 --eval_tokens=512 --core_metric_every=-1 \\"
+        echo "       --total_batch_size=512 --num_iterations=10"
+        echo ""
+        echo "💡 TIP: Use --watch mode for faster iteration:"
+        echo "   bash scripts/local_cpu_own_gpt_transformer.sh --watch"
+    else
+        echo "❌ Training failed (exit code: $TRAIN_EXIT_CODE)"
+        echo ""
+        echo "Look for the error message above."
+        echo ""
+        echo "If you see 'NotImplementedError':"
+        echo "  1. Read the error message - it tells you what to implement"
+        echo "  2. Look at the [DEBUG] output to understand the context"
+        echo "  3. Open nanochat/normans_gpt.py"
+        echo "  4. Implement the method mentioned in the error"
+        echo "  5. Run this script again"
+        echo ""
+        echo "If you see a different error:"
+        echo "  1. Read the error message and traceback"
+        echo "  2. Check for shape mismatches, device issues, etc."
+        echo "  3. Compare your implementation with nanochat/gpt.py"
+        echo "  4. Add debug prints to understand what's happening"
+        echo "  5. Fix the issue and run again"
+        echo ""
+        echo "For help, see:"
+        echo "  - docs/how-to/03-how-to-write-your-own-gpt-transformer.md"
+        echo "  - experiments/NORMANS_GPT_LEARNING_STATUS.md"
+    fi
+
+    echo ""
+    echo "=================================================="
+    echo ""
+
+    exit $TRAIN_EXIT_CODE
+fi

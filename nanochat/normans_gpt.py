@@ -109,7 +109,16 @@ class CausalSelfAttention(nn.Module):
         super().__init__()
         print0(f"[DEBUG] Initializing CausalSelfAttention for layer {layer_idx}")
         self.layer_idx = layer_idx
-        raise NotImplementedError("TODO: Implement CausalSelfAttention.__init__")
+        self.n_head = config.n_head
+        # self.n_kv_head = config.n_kv_head
+        # self.n_embd = config.n_embd
+        # self.head_dim = self.n_embd // self.n_head
+        # assert self.n_embd % self.n_head == 0
+        # assert self.n_kv_head <= self.n_head and self.n_head % self.n_kv_head == 0
+        # self.c_q = nn.Linear(self.n_embd, self.n_head * self.head_dim, bias=False)
+        # self.c_k = nn.Linear(self.n_embd, self.n_kv_head * self.head_dim, bias=False)
+        # self.c_v = nn.Linear(self.n_embd, self.n_kv_head * self.head_dim, bias=False)
+        # self.c_proj = nn.Linear(self.n_embd, self.n_embd, bias=False)
 
     def forward(self, x, cos_sin, kv_cache):
         print0(
@@ -137,7 +146,8 @@ class MLP(nn.Module):
     def __init__(self, config):
         super().__init__()
         print0(f"[DEBUG] Initializing MLP")
-        raise NotImplementedError("TODO: Implement MLP.__init__")
+        self.c_fc = nn.Linear(config.n_embd, 4 * config.n_embd, bias=False)
+        # self.c_proj = nn.Linear(4 * config.n_embd, config.n_embd, bias=False)
 
     def forward(self, x):
         print0(f"[DEBUG] MLP.forward() called with input shape: {x.shape}")
@@ -253,12 +263,34 @@ class GPT(nn.Module):
     def init_weights(self):
         """Initialize model weights."""
         print0(f"[DEBUG] GPT.init_weights() called")
-        raise NotImplementedError("TODO: Implement GPT.init_weights")
+        self.apply(self._init_weights)
+        # # zero out classifier weights
+        # torch.nn.init.zeros_(self.lm_head.weight)
+        # # zero out c_proj weights in all blocks
+        # for block in self.transformer.h:
+        #     torch.nn.init.zeros_(block.mlp.c_proj.weight)
+        #     torch.nn.init.zeros_(block.attn.c_proj.weight)
+        # # init the rotary embeddings
+        # head_dim = self.config.n_embd // self.config.n_head
+        # cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+        # self.cos, self.sin = cos, sin
+        # # Cast the embeddings from fp32 to bf16: optim can tolerate it and it saves memory: both in the model and the activations
+        # if self.transformer.wte.weight.device.type == "cuda":
+        #     self.transformer.wte.to(dtype=torch.bfloat16)
 
     def _init_weights(self, module):
         """Initialize weights for a single module."""
         print0(f"[DEBUG] GPT._init_weights() called for {type(module).__name__}")
-        raise NotImplementedError("TODO: Implement GPT._init_weights")
+        # if isinstance(module, nn.Linear):
+        #     # https://arxiv.org/pdf/2310.17813
+        #     fan_out = module.weight.size(0)
+        #     fan_in = module.weight.size(1)
+        #     std = 1.0 / math.sqrt(fan_in) * min(1.0, math.sqrt(fan_out / fan_in))
+        #     torch.nn.init.normal_(module.weight, mean=0.0, std=std)
+        #     if module.bias is not None:
+        #         torch.nn.init.zeros_(module.bias)
+        # elif isinstance(module, nn.Embedding):
+        #     torch.nn.init.normal_(module.weight, mean=0.0, std=1.0)
 
     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=10000, device=None):
         """Precompute rotary embeddings for all positions."""
