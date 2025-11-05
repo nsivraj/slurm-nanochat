@@ -18,7 +18,7 @@ import torch.nn.functional as F
 from contextlib import nullcontext
 from datetime import datetime
 
-from nanochat.gpt import GPT, GPTConfig, norm, apply_rotary_emb
+from nanochat.normans_gpt import GPT, GPTConfig, norm, apply_rotary_emb
 from nanochat.dataloader import tokenizing_distributed_data_loader
 from nanochat.common import compute_init, compute_cleanup, print0
 from nanochat.tokenizer import get_tokenizer

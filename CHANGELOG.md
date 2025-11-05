@@ -8,6 +8,73 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added - Learn by Implementing (2025-11-03)
+- **NEW LEARNING WORKFLOW**: Iterative transformer implementation for deep learning
+  - `nanochat/normans_gpt.py` - Skeleton GPT implementation with debug statements
+  - Complete structure mirroring `nanochat/gpt.py` with `NotImplementedError` placeholders
+  - Comprehensive debug print statements showing execution flow
+  - TODO comments explaining what to implement at each step
+- `scripts/local_cpu_own_gpt_transformer.sh` - Quick iteration script for learning
+  - Runs single training iteration (10-30 seconds)
+  - **Automatically downloads data and trains tokenizer** on first run (~15-20 min)
+  - Shows debug output and implementation errors
+  - Handles environment setup automatically
+  - Provides helpful feedback on success/failure
+  - No manual setup required - just run and start implementing!
+- `docs/how-to/03-how-to-write-your-own-gpt-transformer.md` - Complete implementation guide
+  - Step-by-step workflow for iterative development
+  - Implementation order based on execution flow
+  - Debugging tips and common issues
+  - Detailed explanations of each component
+  - Learning outcomes and verification checklist
+- `experiments/NORMANS_GPT_LEARNING_STATUS.md` - Progress tracking document
+  - Current status and implementation checklist
+  - Learning log for insights and discoveries
+  - Questions to answer while implementing
+  - Debugging notes and issue templates
+  - Performance comparison framework
+
+### Changed - Import Updates (2025-11-03)
+- Updated imports to use `normans_gpt` instead of `gpt`:
+  - `scripts/base_train.py:22` - Training script
+  - `nanochat/checkpoint_manager.py:12` - Checkpoint management
+  - `scripts/learn_via_debug/debug_gpt_components.py:21` - Debug script
+- Verified training pipeline works with skeleton implementation
+
+### Learning Approach
+This workflow enables hands-on learning by:
+1. Running training to hit `NotImplementedError`
+2. Understanding what's needed from debug output
+3. Implementing the method with reference to `gpt.py`
+4. Running again to see the next step
+5. Building deep intuition through iteration
+
+**Goal**: Understand transformers by implementing them, not just reading code.
+
+### Implementation Progress (2025-11-03)
+- ✅ **GPT.__init__** - Implemented model architecture setup
+  - Created transformer ModuleDict with embeddings (wte) and blocks (h)
+  - Created language modeling head (lm_head)
+  - Setup rotary embedding buffers
+- ✅ **Block.__init__** - Implemented transformer block initialization
+  - Created CausalSelfAttention layer
+  - Created MLP layer
+  - Added comprehensive comments explaining each component
+- ✅ **Deep Learning Sessions** - Extensive Q&A documented in learning status
+  - Understood PyTorch basics (nn, ModuleDict, Embedding)
+  - Understood tokenization (BPE algorithm, vocab_size)
+  - Understood embeddings (lookup tables, distributed representations)
+  - Understood architecture (depth, aspect ratio, hierarchical learning)
+  - Understood data flow (matrix dimensions, sequence length, residual connections)
+  - Understood max_seq_len impact (long-range learning vs embedding quality)
+- **Next to implement**: CausalSelfAttention.__init__ and MLP.__init__
+
+### Bug Fixes (2025-11-03)
+- Fixed tokenizer path in `scripts/local_cpu_own_gpt_transformer.sh`
+  - Changed from `$NANOCHAT_BASE_DIR/tokenizer.pkl`
+  - To `$NANOCHAT_BASE_DIR/tokenizer/tokenizer.pkl`
+  - Prevents unnecessary tokenizer retraining
+
 ---
 
 ## [2025-11-01] - Dataset Requirements & Resume Training
