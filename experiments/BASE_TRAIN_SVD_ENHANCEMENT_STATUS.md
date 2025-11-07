@@ -397,7 +397,146 @@ for step in range(num_iterations):
 
 ---
 
-**Status**: Ready to implement
-**Confidence**: High - All design work complete, clear path forward
+## Implementation Roadmap (3-Phase Approach)
+
+### Phase 1: Minimal Proof-of-Concept ⏰ CURRENT PHASE
+
+**Goal**: Validate that adaptive SVD mechanics work without crashing
+
+**Scope**:
+- Single layer: Only `c_q` in transformer block 0
+- Small model: depth=4 (4 layers, ~10M parameters)
+- Short run: 100 training steps
+- Local execution: CPU or single GPU
+
+**Success Criteria**:
+1. ✅ Training completes without errors
+2. ✅ SVD metrics are computed correctly every `svd_interval` steps
+3. ✅ Mode switching occurs (at least one switch between full/lowrank)
+4. ✅ Logged metrics make sense (angles, alignments, reconstruction errors)
+5. ✅ Model can still generate text after training
+
+**Deliverables**:
+1. `nanochat/gpt.py` - Add `AdaptiveSVDLinear` class
+2. `scripts/base_train_adaptive_svd.py` - Modified training script
+3. Validation run output showing metrics and mode switches
+
+**Timeline**: 1-2 sessions (3-4 hours)
+
+---
+
+### Phase 2: Full Attention Coverage, Small Scale ⏳ AFTER PHASE 1
+
+**Goal**: Verify approach works for all attention layers in a complete training run
+
+**Scope**:
+- All attention layers: `c_q`, `c_k`, `c_v`, `c_proj` in all 4 blocks
+- Small model: depth=4 (4 layers, ~10M parameters)
+- Full training: Complete base training (~2000-3000 steps)
+- Local or single GPU execution
+
+**Success Criteria**:
+1. ✅ All attention layers switch modes appropriately
+2. ✅ Final validation loss comparable to baseline (within 5%)
+3. ✅ Model generates coherent text
+4. ✅ At least one instance of clobbering detection (principal_alignment > 0.4)
+5. ✅ r decreases over training for at least some layers
+
+**Deliverables**:
+1. Updated `nanochat/gpt.py` - All attention layers use `AdaptiveSVDLinear`
+2. Training logs with all metrics
+3. Comparison with baseline depth=4 model
+4. Analysis document showing clobbering detection in action
+
+**Timeline**: 2-3 sessions (4-6 hours dev + 2-3 hours training)
+
+**Blockers**: Must complete Phase 1 successfully first
+
+---
+
+### Phase 3: Production Deployment ⏳ AFTER PHASE 2
+
+**Goal**: Run full-scale experiment on production model
+
+**Scope**:
+- All attention layers in all 20 blocks
+- Production model: depth=20 (20 layers, 561M parameters)
+- Full base training: ~21,400 steps, 7-8 hours on 8xA100
+- Ptolemy cluster execution
+
+**Success Criteria**:
+1. ✅ Training completes successfully on Ptolemy
+2. ✅ Training time competitive with baseline (~7-8 hours)
+3. ✅ Final validation loss within 3% of baseline
+4. ✅ CORE metric comparable or better than baseline
+5. ✅ Evidence of successful clobbering prevention
+6. ✅ Compression happening (r decreasing for most layers)
+
+**Deliverables**:
+1. Slurm script for Ptolemy execution
+2. Full training logs with all SVD metrics
+3. Comprehensive analysis comparing with baseline
+4. Research write-up documenting findings
+5. Plots showing:
+   - r evolution over training
+   - Principal alignment spikes (clobbering events)
+   - Mode switching patterns
+   - Training loss comparison
+
+**Timeline**: 1-2 sessions setup (2-4 hours) + 7-8 hours training + 1 session analysis (2-3 hours)
+
+**Blockers**: Must complete Phase 2 successfully first
+
+**Optional Extensions**:
+- Apply to MLP layers (`c_fc`, `c_proj`)
+- Experiment with different `svd_interval` values (50, 100, 500)
+- Try different threshold values for decision logic
+- Compare multiple runs with different random seeds
+
+---
+
+## Current Session Progress (November 7, 2025)
+
+### Completed Today ✅
+
+1. **Created `nanochat/adaptive_svd.py`** - All 6 metric functions implemented
+   - `compute_subspace_angle()` - Principal subspace rotation detection
+   - `compute_singular_value_concentration()` - Information distribution tracking
+   - `compute_reconstruction_error()` - Compression safety check
+   - `compute_gradient_alignment()` - **CLOBBERING DETECTOR** ⭐
+   - `determine_next_r()` - Adaptive rank selection
+   - `should_use_lowrank_training()` - Master decision logic
+
+2. **Created `tests/test_adaptive_svd.py`** - Comprehensive test suite
+   - 22 unit tests, all passing ✅
+   - Tests for each individual metric function
+   - Integration tests for complete workflow
+   - Clobbering detection validation
+
+3. **Enhanced documentation with U vs V explanation**
+   - Updated `nanochat/adaptive_svd.py` with detailed docstrings
+   - Added comprehensive section to `experiments/BASE_TRAIN_SVD_ENHANCEMENT.md`
+   - Explains why we track left singular vectors (output space patterns)
+
+4. **Created `experiments/SVD_ENHANCEMENT_ARCHITECTURE_MODIFICATIONS.md`**
+   - Complete `AdaptiveSVDLinear` class design
+   - Training loop integration strategy
+   - Optimizer handling approach
+   - 3-phase implementation roadmap
+   - Expected challenges and solutions
+
+### Ready to Start: Phase 1 Implementation ⏰
+
+**Next immediate steps**:
+1. Add `AdaptiveSVDLinear` class to `nanochat/gpt.py`
+2. Modify GPTConfig to support `adaptive_svd` flag
+3. Create `scripts/base_train_adaptive_svd.py` with SVD analysis integration
+4. Run Phase 1 validation test (depth=4, 100 steps)
+5. Analyze results and verify all metrics are working
+
+---
+
+**Status**: Phase 1 implementation ready to begin
+**Confidence**: High - All design and testing complete
 **Blockers**: None
-**Last Updated**: November 7, 2025
+**Last Updated**: November 7, 2025 (Session 2)
