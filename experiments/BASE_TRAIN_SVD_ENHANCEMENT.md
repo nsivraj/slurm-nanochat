@@ -834,6 +834,142 @@ input_clobbering = compute_gradient_alignment(grad_W.T, V, S, r)
 
 ---
 
+## When Will the Algorithm Switch to Low-Rank Training?
+
+### Decision Threshold Summary
+
+From `nanochat/adaptive_svd.py:419-446`, the algorithm switches to low-rank mode when either:
+
+**Immediate Trigger (Clobbering Detection)**:
+- `principal_alignment > 0.4` → SWITCH NOW (gradients attacking learned patterns)
+
+**Optimal Conditions Trigger**:
+- `subspace_angle < 0.1` radians (~5.7 degrees) AND
+- `minor_alignment > 0.6` AND
+- `reconstruction_error < 0.01`
+→ All three must be true simultaneously
+
+### Phase 1 Results (100 steps)
+
+No mode switches occurred during Phase 1, which tells us:
+- `principal_alignment` stayed below 0.4 (no immediate clobbering risk)
+- The optimal conditions were never simultaneously satisfied
+
+This is **expected behavior** for early training because:
+1. **Unstable subspace**: Weight matrices change rapidly in early training → subspace angle likely > 0.1
+2. **Scattered gradients**: Gradients explore the full parameter space → alignments not clearly separated
+
+### Projection for Longer Training Runs
+
+Based on typical neural network training dynamics, here's when I expect the first switch:
+
+#### **Scenario 1: Standard Training (depth=4, ~2000-3000 steps)**
+
+**Expected first switch: Steps 400-800**
+
+Training phases:
+```
+Steps 0-200:   Full matrix (rapid learning, unstable subspace)
+               - subspace_angle likely 0.2-0.5 (too high)
+               - gradients exploring all directions
+
+Steps 200-600: Full matrix (patterns forming, subspace stabilizing)
+               - subspace_angle decreasing toward 0.1
+               - principal_alignment starting to rise as patterns lock in
+
+Steps 600-800: **FIRST SWITCH TO LOW-RANK**
+               - Trigger: Optimal conditions met
+               - subspace_angle drops below 0.1 (stable patterns)
+               - minor_alignment exceeds 0.6 (gradients in safe space)
+               - reconstruction_error < 0.01 (compression safe)
+
+Steps 800+:    Low-rank mode (protecting learned patterns)
+               - Occasional switches back to full if subspace rotates
+               - r decreases gradually (r=246 → r=180 → r=120...)
+```
+
+#### **Scenario 2: Large-Scale Training (depth=20, ~21,400 steps on Ptolemy)**
+
+**Expected first switch: Steps 800-1500**
+
+Larger models take longer to stabilize because:
+- More parameters → more degrees of freedom
+- Deeper networks → more complex optimization landscape
+- Richer patterns → longer to discover principal subspace
+
+```
+Steps 0-500:     Full matrix (rapid exploration)
+Steps 500-1500:  Full matrix (pattern formation)
+Steps 1500-2000: **FIRST SWITCH TO LOW-RANK**
+Steps 2000+:     Mostly low-rank with occasional full matrix periods
+```
+
+### Alternative Scenario: Clobbering Detected
+
+If at any point during training:
+- The model learns strong output patterns (large singular values)
+- Then gradients start modifying those patterns (`principal_alignment > 0.4`)
+- **Immediate switch** regardless of training step
+
+This could happen as early as step 200-400 if:
+1. Model quickly learns simple patterns (e.g., frequent n-grams)
+2. Then training data shifts or batch diversity increases
+3. Gradients try to overwrite those patterns
+
+### Why Phase 1 Didn't Switch
+
+At 100 steps with depth=4:
+- **Too early**: Subspace hasn't stabilized yet
+- **Gradients unfocused**: Not clearly aligned to minor space
+- **Patterns still forming**: Principal components still rotating
+
+This is **good** - it means the algorithm correctly identified that it's too early to compress.
+
+### Recommendations for Phase 2
+
+To better observe mode switching behavior:
+
+1. **Run for 2000-3000 steps** (vs 100 in Phase 1)
+2. **Lower svd_interval to 10-20 steps** for finer-grained monitoring
+3. **Watch for these signs of imminent switch**:
+   ```
+   Step 400: subspace_angle=0.15, minor_align=0.52  (getting close)
+   Step 450: subspace_angle=0.12, minor_align=0.58  (very close)
+   Step 500: subspace_angle=0.08, minor_align=0.64  → SWITCH!
+   ```
+
+4. **Expected WandB trajectory**:
+   ```python
+   # Early training (steps 0-400)
+   subspace_angle: 0.3 → 0.2 → 0.15
+   principal_alignment: 0.2 → 0.25 → 0.3
+   minor_alignment: 0.3 → 0.4 → 0.5
+
+   # Mid training (steps 400-800) - SWITCH ZONE
+   subspace_angle: 0.15 → 0.1 → 0.08 → 0.06
+   principal_alignment: 0.3 → 0.35 → 0.38
+   minor_alignment: 0.5 → 0.58 → 0.62 → 0.68
+
+   # Late training (steps 800+)
+   mode: lowrank
+   r: 246 → 220 → 195 → 170
+   ```
+
+### Confidence Level
+
+**High confidence (80%)** that first switch occurs:
+- depth=4: between steps 400-800
+- depth=20: between steps 800-1500
+
+**Medium confidence (60%)** on exact timing because:
+- Depends on data diversity and batch composition
+- Depends on learning rate schedule
+- May vary between different random seeds
+
+**Key insight**: **The algorithm is conservative** - it waits for clear evidence of stable patterns before compressing. This is by design to avoid premature compression during active learning phases.
+
+---
+
 ## Next Steps
 
 1. **Implement the metrics** - ✅ DONE - `nanochat/adaptive_svd.py`
