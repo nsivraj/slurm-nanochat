@@ -62,15 +62,18 @@
 nanochat/adaptive_svd.py                              (419 lines)
 tests/test_adaptive_svd.py                            (422 lines)
 scripts/base_train_adaptive_svd.py                    (modified from base_train.py)
+scripts/monitor_svd_metrics.py                        (455 lines - real-time monitoring)
 experiments/SVD_ENHANCEMENT_ARCHITECTURE_MODIFICATIONS.md
 experiments/PHASE1_RUN_INSTRUCTIONS.md
+experiments/SVD_MONITORING_GUIDE.md                   (comprehensive monitoring docs)
+experiments/MONITORING_QUICKSTART.md                  (quick reference card)
 experiments/SVD_ENHANCEMENT_PHASE1_IMPLEMENTATION_SUMMARY.md  (this file)
 ```
 
 ### Modified Files
 ```
 nanochat/gpt.py                     (+164 lines - AdaptiveSVDLinear class)
-experiments/BASE_TRAIN_SVD_ENHANCEMENT.md            (+157 lines - U vs V section)
+experiments/BASE_TRAIN_SVD_ENHANCEMENT.md            (+295 lines - U vs V + switch projection)
 experiments/BASE_TRAIN_SVD_ENHANCEMENT_STATUS.md     (+145 lines - 3-phase roadmap)
 ```
 
@@ -295,6 +298,7 @@ All code written, tested, and documented. Training script ready to run.
    - Full technical explanation
    - All metric functions with examples
    - U vs V distinction
+   - When switches will occur (projection analysis)
 
 2. **Status Tracking**: `experiments/BASE_TRAIN_SVD_ENHANCEMENT_STATUS.md`
    - Session progress log
@@ -311,7 +315,14 @@ All code written, tested, and documented. Training script ready to run.
    - Troubleshooting guide
    - Success criteria checklist
 
-5. **This Summary**: `experiments/SVD_ENHANCEMENT_PHASE1_IMPLEMENTATION_SUMMARY.md`
+5. **Monitoring Tools**:
+   - `scripts/monitor_svd_metrics.py` - Real-time monitoring script
+   - `experiments/SVD_MONITORING_GUIDE.md` - Comprehensive monitoring guide
+   - `experiments/MONITORING_QUICKSTART.md` - Quick reference card
+   - Tracks metrics in real-time and alerts when switches are imminent
+   - Essential for Phase 2 and Phase 3
+
+6. **This Summary**: `experiments/SVD_ENHANCEMENT_PHASE1_IMPLEMENTATION_SUMMARY.md`
    - What was accomplished
    - How to run
    - Next steps
@@ -330,6 +341,7 @@ This implementation builds on:
 - Gradient-based clobbering detection
 - Adaptive rank selection during base training
 - Phase-based implementation strategy
+- Real-time monitoring and alerting system for mode switches
 
 ---
 
