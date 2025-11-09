@@ -357,3 +357,365 @@ If you encounter issues:
 4. Document the error and context for discussion
 
 **Good luck with Phase 1! 🚀**
+
+---
+
+## NEW: Simplified Shell Script Workflow
+
+Two new shell scripts have been created for easier execution and monitoring:
+
+### Scripts Available
+
+1. **`scripts/svd_adaptive_local_cpu_train.sh`** - Training script with smart defaults
+2. **`scripts/svd_monitor.sh`** - Real-time monitoring with alerts
+
+### ⚠️ WandB Monitoring Note
+
+**Issue**: The monitoring script requires WandB online mode with authentication (`wandb login`).
+
+**Current approach**: For local CPU training, we run without WandB (dummy mode):
+- All SVD metrics are logged to the console/file
+- No WandB dashboard needed
+- Simpler execution without authentication dependencies
+- Full analysis possible from log files
+
+**For future Ptolemy runs**: Use `WANDB_MODE=offline` to save metrics locally without internet connection.
+
+---
+
+## Simplified Workflow (No WandB - Recommended for Local CPU)
+
+### Single Terminal: Start Training
+
+```bash
+cd /Users/norman.jarvis/forge/work/code/coderockit/msu-phd/slurm-nanochat
+
+# Quick start with defaults (2000 steps)
+bash scripts/svd_adaptive_local_cpu_train.sh
+
+# OR: Extended run (3000 steps for more observation)
+bash scripts/svd_adaptive_local_cpu_train.sh --num_iterations=3000
+```
+
+**The script will:**
+- Check your environment
+- Display configuration
+- Show estimated runtime (~80 minutes for 2000 steps)
+- Ask for confirmation before starting
+- Log all output to screen AND file
+
+**All SVD metrics logged in real-time:**
+- SVD analysis every 20 steps
+- Mode switches when they occur
+- Metrics: principal_alignment, minor_alignment, subspace_angle, reconstruction_error
+- No WandB needed - everything in the log file
+
+**After training completes**, analyze the log file for results.
+
+---
+
+## Alternative: Two-Terminal Workflow with WandB (If Configured)
+
+If you have WandB authenticated and want real-time monitoring:
+
+### Terminal 1: Start Training
+
+```bash
+cd /Users/norman.jarvis/forge/work/code/coderockit/msu-phd/slurm-nanochat
+
+# Enable WandB with custom run name
+bash scripts/svd_adaptive_local_cpu_train.sh \
+  --num_iterations=2000 \
+  --wandb_run=phase1-extended 2>&1 | tee svd_training_run.log
+```
+
+### Terminal 2: Monitor Metrics
+
+After training starts and you have the WandB run ID:
+
+```bash
+cd /Users/norman.jarvis/forge/work/code/coderockit/msu-phd/slurm-nanochat
+
+# Replace abc123def456 with your actual run ID
+bash scripts/svd_monitor.sh --wandb_run=abc123def456 2>&1 | tee svd_monitoring_run.log
+```
+
+**Note**: This requires `wandb login` to be completed first.
+
+---
+
+## What You'll See
+
+### Training Terminal (Terminal 1)
+
+```
+==================================================
+SVD Adaptive Training - Parameter Setup
+==================================================
+
+Training Configuration:
+----------------------
+Model:
+  depth:              4
+  max_seq_len:        512
+
+Training:
+  num_iterations:     2000
+  device_batch_size:  1
+  total_batch_size:   512
+
+SVD Adaptive:
+  svd_interval:       20 (SVD analysis every N steps)
+
+Estimated runtime: ~80 minutes
+
+...
+
+Step 20/2000 | loss: 10.543 | ...
+=== SVD Analysis at step 20 ===
+  [block0.attn.c_q] Initial SVD computed
+=== SVD Analysis complete ===
+
+...
+
+Step 640/2000 | loss: 7.123 | ...
+=== SVD Analysis at step 640 ===
+  [block0.attn.c_q] SWITCHED TO LOW-RANK (r=220) - Reason: optimal_lowrank_conditions
+=== SVD Analysis complete ===
+```
+
+### Monitoring Terminal (Terminal 2)
+
+```
+==================================================
+Starting SVD Metrics Monitoring
+==================================================
+
+Monitoring WandB run: abc123def456
+Project: nanochat
+
+What to expect:
+  🟢 Steps 0-200:   Quiet (no alerts)
+  🟡 Steps 200-400: INFO alerts (trends detected)
+  🟡 Steps 400-600: WARNING alerts (approaching thresholds)
+  🔴 Steps 600-800: CRITICAL alerts (switch imminent)
+  🟢 Steps 800+:    Mode switches completed
+
+Press Ctrl+C to stop monitoring and show summary
+
+==================================================
+
+⚠️  Step 480 | block0.attn.c_q
+    WARNING: Approaching optimal conditions
+    - subspace_angle: 0.12 (within 0.02 of 0.1)
+    - minor_alignment: 0.58 (within 0.02 of 0.6)
+
+🚨 Step 640 | block0.attn.c_q
+    CRITICAL: OPTIMAL CONDITIONS MET! → SWITCH IMMINENT
+    All 3 criteria satisfied
+```
+
+---
+
+## Customization Examples
+
+All parameters can be specified in any order, any combination.
+
+### Different Run Lengths
+
+```bash
+# Quick test (100 steps, ~4 minutes)
+bash scripts/svd_adaptive_local_cpu_train.sh --num_iterations=100
+
+# Standard Phase 1 (2000 steps, ~80 minutes)
+bash scripts/svd_adaptive_local_cpu_train.sh --num_iterations=2000
+
+# Extended Phase 1 (3000 steps, ~120 minutes)
+bash scripts/svd_adaptive_local_cpu_train.sh --num_iterations=3000
+
+# Very long (5000 steps, ~200 minutes)
+bash scripts/svd_adaptive_local_cpu_train.sh --num_iterations=5000
+```
+
+### More Frequent SVD Analysis
+
+```bash
+# Default: SVD every 20 steps
+bash scripts/svd_adaptive_local_cpu_train.sh
+
+# More frequent: SVD every 10 steps (finer-grained detection)
+bash scripts/svd_adaptive_local_cpu_train.sh --svd_interval=10
+
+# Less frequent: SVD every 50 steps (faster, less overhead)
+bash scripts/svd_adaptive_local_cpu_train.sh --svd_interval=50
+```
+
+### Larger Model
+
+```bash
+# Default: depth=4 (~37M params)
+bash scripts/svd_adaptive_local_cpu_train.sh
+
+# Larger: depth=6 (~83M params, slower)
+bash scripts/svd_adaptive_local_cpu_train.sh --depth=6 --num_iterations=2000
+```
+
+### Custom WandB Run ID
+
+```bash
+# Auto-generated run ID
+bash scripts/svd_adaptive_local_cpu_train.sh
+
+# Custom run ID for easy identification
+bash scripts/svd_adaptive_local_cpu_train.sh --wandb_run=phase1-extended-2000steps
+
+# Then monitor with:
+bash scripts/svd_monitor.sh --wandb_run=phase1-extended-2000steps
+```
+
+### Multiple Parameters Combined
+
+```bash
+# Any parameters, any order
+bash scripts/svd_adaptive_local_cpu_train.sh \
+  --depth=6 \
+  --num_iterations=3000 \
+  --svd_interval=15 \
+  --wandb_run=depth6-3ksteps \
+  --eval_every=300
+```
+
+---
+
+## Monitoring Customization
+
+### Faster Refresh
+
+```bash
+# Default: Check every 10 seconds
+bash scripts/svd_monitor.sh --wandb_run=abc123def456
+
+# Faster: Check every 5 seconds
+bash scripts/svd_monitor.sh --wandb_run=abc123def456 --refresh_interval=5
+
+# Slower: Check every 30 seconds (less network traffic)
+bash scripts/svd_monitor.sh --wandb_run=abc123def456 --refresh_interval=30
+```
+
+### More Sensitive Alerts
+
+```bash
+# Default: Alert when within 0.05 of threshold
+bash scripts/svd_monitor.sh --wandb_run=abc123def456
+
+# More sensitive: Alert when within 0.08
+bash scripts/svd_monitor.sh --wandb_run=abc123def456 --warn_margin=0.08
+
+# Less sensitive: Alert when within 0.02 (fewer alerts)
+bash scripts/svd_monitor.sh --wandb_run=abc123def456 --warn_margin=0.02
+```
+
+### Custom Decision Thresholds
+
+```bash
+# Earlier clobbering detection (lower threshold)
+bash scripts/svd_monitor.sh \
+  --wandb_run=abc123def456 \
+  --principal_danger=0.35
+
+# More conservative switching (higher safety requirements)
+bash scripts/svd_monitor.sh \
+  --wandb_run=abc123def456 \
+  --minor_safe=0.65 \
+  --angle_stable=0.08
+```
+
+### Quiet Mode
+
+```bash
+# Show everything (default)
+bash scripts/svd_monitor.sh --wandb_run=abc123def456
+
+# Only show alerts (quiet mode)
+bash scripts/svd_monitor.sh --wandb_run=abc123def456 --quiet
+```
+
+---
+
+## Finding Your WandB Run ID
+
+### Method 1: From Console Output
+
+Look for this line in the training terminal:
+
+```
+wandb: ⭐️ View run at https://wandb.ai/yourname/nanochat/runs/abc123def456
+                                                                 ^^^^^^^^^^^^
+                                                                 This is your run ID
+```
+
+### Method 2: From WandB Dashboard
+
+1. Go to https://wandb.ai/
+2. Click on your project (e.g., "nanochat")
+3. Click on the active run
+4. Copy the run ID from the URL:
+   ```
+   https://wandb.ai/<entity>/<project>/runs/<RUN_ID>
+   ```
+
+---
+
+## Expected Timeline (depth=4, 2000 steps)
+
+| Step Range | Duration | What's Happening | Alerts |
+|------------|----------|------------------|--------|
+| 0-200 | ~8 min | Initial learning, unstable subspace | None |
+| 200-400 | ~8 min | Patterns forming, metrics improving | INFO |
+| 400-600 | ~8 min | Subspace stabilizing | WARNING |
+| 600-800 | ~8 min | **FIRST SWITCH EXPECTED** | CRITICAL |
+| 800-2000 | ~48 min | Low-rank mode, r decreasing | INFO |
+
+**Total**: ~80 minutes on modern CPU (MacBook Pro M1/M2)
+
+---
+
+## Shell Script Help
+
+Both scripts have built-in help:
+
+```bash
+# Show all training options
+bash scripts/svd_adaptive_local_cpu_train.sh --help
+
+# Show all monitoring options
+bash scripts/svd_monitor.sh --help
+```
+
+---
+
+## Quick Reference Card
+
+**Start training with defaults:**
+```bash
+bash scripts/svd_adaptive_local_cpu_train.sh
+```
+
+**Monitor (replace with your run ID):**
+```bash
+bash scripts/svd_monitor.sh --wandb_run=<YOUR_RUN_ID>
+```
+
+**Training with 3000 steps:**
+```bash
+bash scripts/svd_adaptive_local_cpu_train.sh --num_iterations=3000
+```
+
+**Monitoring with faster refresh:**
+```bash
+bash scripts/svd_monitor.sh --wandb_run=<ID> --refresh_interval=5
+```
+
+---
+
+**Ready to start the extended Phase 1 validation!** 🚀

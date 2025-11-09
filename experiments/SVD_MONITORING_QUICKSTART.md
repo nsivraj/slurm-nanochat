@@ -1,5 +1,13 @@
 # SVD Monitoring Quick Start
 
+## ⚠️ Prerequisite
+
+**Requires WandB authentication**: Run `wandb login` first.
+
+**Alternative**: For local CPU training without WandB, skip monitoring and analyze log files after training completes.
+
+---
+
 ## One-Command Monitoring
 
 ```bash

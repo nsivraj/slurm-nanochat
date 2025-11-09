@@ -13,6 +13,21 @@ The monitoring script provides:
 3. **Visual indicators** of training progress toward low-rank mode
 4. **Summary statistics** across all monitored layers
 
+### ⚠️ Prerequisites
+
+**WandB Authentication Required**: This script requires WandB to be configured with authentication:
+```bash
+wandb login
+```
+
+**Alternative for local CPU training**: If WandB authentication is not available:
+- Run training with default settings (dummy mode, no `--wandb_run` parameter)
+- All SVD metrics are still logged to the training output
+- Analyze results from log files after training completes
+- See `experiments/SVD_ENHANCEMENT_PHASE1_RUN_INSTRUCTIONS.md` for log analysis
+
+**For Ptolemy cluster**: Use `WANDB_MODE=offline` to save metrics locally without internet connection
+
 ### Alert Levels
 
 - 🚨 **CRITICAL**: Immediate action needed (switch happening now or very soon)

@@ -716,8 +716,135 @@ python -m scripts.base_train_adaptive_svd \
 
 ---
 
-**Status**: Phase 1 complete, ready for extended validation run
-**Confidence**: Very High - All implementation validated at 100 steps
-**Blockers**: None
-**Next Action**: Extended Phase 1 run (2000-3000 steps on CPU)
-**Last Updated**: November 7, 2025 (Session 3)
+---
+
+## Session 4: Extended Phase 1 Validation - Shell Scripts & WandB Issues
+
+**Date**: November 9, 2025
+
+### What We Accomplished
+
+#### 1. ✅ Created Shell Script Workflow
+
+**Created `scripts/svd_adaptive_local_cpu_train.sh`** (368 lines):
+- Smart defaults for Phase 1 extended validation (2000 steps)
+- Flexible parameter handling (any order, any combination)
+- Pre-flight environment checks
+- Configuration display and runtime estimation
+- Built-in help: `--help`
+- Automatic log file creation with timestamps
+
+**Created `scripts/svd_monitor.sh`** (314 lines):
+- Real-time WandB monitoring with alerts
+- Customizable thresholds and refresh intervals
+- Summary report on exit
+- Built-in help: `--help`
+
+**Updated documentation**:
+- Enhanced `experiments/SVD_ENHANCEMENT_PHASE1_RUN_INSTRUCTIONS.md`
+- Added complete shell script workflow section
+- Two-terminal setup instructions
+- Customization examples
+
+#### 2. ⚠️ WandB Integration Issues Identified
+
+**Problem encountered**:
+- WandB requires API key or login for online mode
+- Error: `wandb.errors.errors.UsageError: api_key not configured (no-tty)`
+- Monitoring script (`svd_monitor.sh`) requires WandB online mode
+
+**Solutions evaluated**:
+1. ❌ **WandB online mode** - Requires `wandb login` (not available)
+2. ✅ **WandB offline mode** - Set `WANDB_MODE=offline` (metrics saved locally, no monitoring)
+3. ✅ **Dummy mode** - Use `run="dummy"` (no WandB, simplest) **← CHOSEN**
+
+**Decision**: Use dummy mode (no WandB) for extended Phase 1 run
+- All SVD metrics still logged to console output
+- Complete training log saved to `svd_training_run.log`
+- Analysis can be done from log file after completion
+- Simpler, no dependencies on WandB authentication
+- Monitoring script not needed for this run
+
+#### 3. 🏃 Extended Phase 1 Run STARTED
+
+**Run configuration**:
+```bash
+bash scripts/svd_adaptive_local_cpu_train.sh \
+  --num_iterations=2000 2>&1 | tee svd_training_run.log
+```
+
+**Parameters**:
+- Model: depth=4 (~37M parameters)
+- Iterations: 2000 steps
+- SVD interval: 20 steps
+- Device: CPU (avoiding MPS SVD issues)
+- Batch size: 512 tokens
+- WandB: Disabled (dummy mode)
+
+**Log files**:
+- Primary: `svd_training_run.log` (includes shell script output)
+- Secondary: `svd_training_20251109_120034.log` (Python script output)
+
+**Start time**: November 9, 2025 12:00:41
+**Expected duration**: ~80 minutes (2000 steps on CPU)
+**Expected completion**: ~13:20
+
+**Expected outcomes**:
+- First mode switch: Steps 400-800
+- Multiple SVD analyses: Every 20 steps (100 total analyses)
+- Metric trajectories visible in log
+- Validation of switching algorithm
+
+---
+
+### Current Status
+
+**Extended Phase 1 Validation**: 🏃 **IN PROGRESS**
+
+**Files created this session**:
+- `scripts/svd_adaptive_local_cpu_train.sh` (new, 368 lines)
+- `scripts/svd_monitor.sh` (new, 314 lines)
+- `svd_training_run.log` (in progress)
+
+**Key decisions**:
+1. ✅ Skip WandB monitoring due to authentication requirements
+2. ✅ Use dummy mode for cleaner, simpler execution
+3. ✅ Analyze results from log file after completion
+4. ✅ Shell scripts provide better user experience than raw Python commands
+
+**Implications for future phases**:
+- **Phase 2/3 on Ptolemy**: Can use `WANDB_MODE=offline` approach (no internet on compute nodes)
+- **Monitoring script**: Useful for future runs with WandB configured, but optional
+- **Log file analysis**: Demonstrates all metrics are accessible without WandB dashboard
+
+---
+
+### After Extended Run Completes
+
+**Analysis tasks**:
+1. Search log for SVD analysis events: `grep "SVD Analysis" svd_training_run.log`
+2. Find mode switches: `grep "SWITCHED" svd_training_run.log`
+3. Extract metric trajectories for key steps
+4. Compare actual vs predicted switch timing (expected: steps 400-800)
+5. Validate decision logic is working correctly
+6. Check if r decreases after switch
+
+**Success criteria**:
+- ✅ Training completes without errors
+- ✅ At least one mode switch occurs
+- ✅ Switch happens in predicted range (steps 400-800)
+- ✅ Metrics show expected trajectory
+- ✅ Loss decreases appropriately
+
+**Decision point**:
+- If switches observed and validated → Proceed to Phase 2
+- If no switches → Extend to 3000-5000 steps or adjust thresholds
+- Document findings in new file: `experiments/PHASE1_EXTENDED_RESULTS.md`
+
+---
+
+**Status**: Extended Phase 1 run IN PROGRESS (started Nov 9, 12:00)
+**Confidence**: High - Shell scripts working, training started successfully
+**Blockers**: None (WandB issue resolved by using dummy mode)
+**Next Action**: Wait for training completion (~80 minutes), then analyze results
+**Last Updated**: November 9, 2025 (Session 4 - In Progress)
