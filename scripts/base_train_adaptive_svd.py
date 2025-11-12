@@ -283,15 +283,35 @@ def analyze_svd_layers(model, step, optimizers_tuple):
         # Execute decision
         if use_lowrank is True and layer.mode == "full":
             # Switch to low-rank
+            print0(f"  [{full_name}] BEFORE SWITCH - Parameters:")
+            print0(f"    W.shape: {layer.weight.shape}, requires_grad: {layer.weight.requires_grad}")
+            print0(f"    B exists: {hasattr(layer, 'B') and layer.B is not None}")
+            print0(f"    A exists: {hasattr(layer, 'A') and layer.A is not None}")
+
             layer.switch_to_lowrank(r_next)
             action = "switched_to_lowrank"
+
             print0(f"  [{full_name}] SWITCHED TO LOW-RANK (r={r_next}) - Reason: {diagnostics['reason']}")
+            print0(f"  [{full_name}] AFTER SWITCH - Parameters:")
+            print0(f"    W.shape: {layer.weight.shape}, requires_grad: {layer.weight.requires_grad}")
+            print0(f"    B.shape: {layer.B.shape}, requires_grad: {layer.B.requires_grad}")
+            print0(f"    A.shape: {layer.A.shape}, requires_grad: {layer.A.requires_grad}")
             optimizers_need_update = True
         elif use_lowrank is False and layer.mode == "lowrank":
             # Switch to full
+            print0(f"  [{full_name}] BEFORE SWITCH - Parameters:")
+            print0(f"    W.shape: {layer.weight.shape}, requires_grad: {layer.weight.requires_grad}")
+            print0(f"    B.shape: {layer.B.shape}, requires_grad: {layer.B.requires_grad}")
+            print0(f"    A.shape: {layer.A.shape}, requires_grad: {layer.A.requires_grad}")
+
             layer.switch_to_full()
             action = "switched_to_full"
+
             print0(f"  [{full_name}] SWITCHED TO FULL MATRIX - Reason: {diagnostics['reason']}")
+            print0(f"  [{full_name}] AFTER SWITCH - Parameters:")
+            print0(f"    W.shape: {layer.weight.shape}, requires_grad: {layer.weight.requires_grad}")
+            print0(f"    B exists: {hasattr(layer, 'B') and layer.B is not None}")
+            print0(f"    A exists: {hasattr(layer, 'A') and layer.A is not None}")
             optimizers_need_update = True
         else:
             # Continue current mode
@@ -316,6 +336,11 @@ def analyze_svd_layers(model, step, optimizers_tuple):
     if optimizers_need_update:
         print0(f"  Re-creating optimizers for new parameter configuration...")
         adamw_optimizer, muon_optimizer = optimizers_tuple
+
+        # Debug: show old optimizer state
+        old_muon_param_count = sum(len(group['params']) for group in muon_optimizer.param_groups)
+        print0(f"  [DEBUG] Old Muon optimizer had {old_muon_param_count} parameters")
+
         new_optimizers = model.setup_optimizers(
             unembedding_lr=unembedding_lr,
             embedding_lr=embedding_lr,
@@ -323,6 +348,11 @@ def analyze_svd_layers(model, step, optimizers_tuple):
             weight_decay=weight_decay
         )
         new_adamw_optimizer, new_muon_optimizer = new_optimizers
+
+        # Debug: show new optimizer state
+        new_muon_param_count = sum(len(group['params']) for group in new_muon_optimizer.param_groups)
+        print0(f"  [DEBUG] New Muon optimizer has {new_muon_param_count} parameters")
+
         # Re-apply current learning rate schedule
         lrm = get_lr_multiplier(step)
         for opt in new_optimizers:
@@ -331,7 +361,7 @@ def analyze_svd_layers(model, step, optimizers_tuple):
         muon_mom = get_muon_momentum(step)
         for group in new_muon_optimizer.param_groups:
             group["momentum"] = muon_mom
-        print0(f"  Optimizers re-created successfully")
+        print0(f"  Optimizers re-created successfully (LR multiplier: {lrm:.4f}, momentum: {muon_mom:.4f})")
         return decisions, (new_adamw_optimizer, new_muon_optimizer)
     else:
         return decisions, optimizers_tuple
@@ -460,8 +490,22 @@ for step in range(num_iterations + 1):
     muon_momentum = get_muon_momentum(step)
     for group in muon_optimizer.param_groups:
         group["momentum"] = muon_momentum
+
+    # Debug logging right before optimizer step (only when mode switch happened recently)
+    if svd_decisions and any(d.get('action') in ['switched_to_lowrank', 'switched_to_full'] for d in svd_decisions.values()):
+        print0(f"[DEBUG] About to step optimizers at step {step}")
+        for i, opt in enumerate(optimizers):
+            opt_name = "AdamW" if i == 0 else "Muon"
+            param_count = sum(len(group['params']) for group in opt.param_groups)
+            print0(f"  {opt_name}: {param_count} parameters")
+
     for opt in optimizers:
         opt.step()
+
+    # Debug logging right after optimizer step (only when mode switch happened recently)
+    if svd_decisions and any(d.get('action') in ['switched_to_lowrank', 'switched_to_full'] for d in svd_decisions.values()):
+        print0(f"[DEBUG] Optimizer step completed successfully at step {step}")
+
     model.zero_grad(set_to_none=True)
     synchronize()
     t1 = time.time()

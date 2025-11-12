@@ -372,10 +372,25 @@ class GPT(nn.Module):
         model_dim = self.config.n_embd
         ddp, rank, local_rank, world_size = get_dist_info()
         # Separate out all parameters into 3 groups (matrix, embedding, lm_head)
-        matrix_params = list(self.transformer.h.parameters())
-        embedding_params = list(self.transformer.wte.parameters())
-        lm_head_params = list(self.lm_head.parameters())
-        assert len(list(self.parameters())) == len(matrix_params) + len(embedding_params) + len(lm_head_params)
+        # IMPORTANT: Only include parameters that require gradients (filters out frozen W in low-rank mode)
+        matrix_params = [p for p in self.transformer.h.parameters() if p.requires_grad]
+        embedding_params = [p for p in self.transformer.wte.parameters() if p.requires_grad]
+        lm_head_params = [p for p in self.lm_head.parameters() if p.requires_grad]
+        # Assertion: verify all trainable params are accounted for
+        trainable_params = [p for p in self.parameters() if p.requires_grad]
+        assert len(trainable_params) == len(matrix_params) + len(embedding_params) + len(lm_head_params)
+
+        # Debug logging: parameter counts
+        if rank == 0:
+            total_params = len(list(self.parameters()))
+            print(f"[DEBUG] setup_optimizers() - Parameter counts:")
+            print(f"  Total parameters (all):      {total_params}")
+            print(f"  Trainable parameters:        {len(trainable_params)}")
+            print(f"  Frozen parameters:           {total_params - len(trainable_params)}")
+            print(f"  Matrix params (trainable):   {len(matrix_params)}")
+            print(f"  Embedding params (trainable): {len(embedding_params)}")
+            print(f"  LM head params (trainable):  {len(lm_head_params)}")
+
         # Create the AdamW optimizer for the embedding and lm_head
         # Scale the LR for the AdamW parameters by ∝1/√dmodel (having tuned the LRs for 768 dim model)
         dmodel_lr_scale = (model_dim / 768) ** -0.5
