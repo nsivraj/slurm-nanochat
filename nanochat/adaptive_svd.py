@@ -416,12 +416,22 @@ def should_use_lowrank_training(
 
     # DECISION LOGIC
 
+    # Thresholds (adjusted for small model / short training validation)
+    # Original conservative thresholds:
+    #   stable_subspace: angle < 0.1 (5.7 degrees)
+    #   gradients_safe: minor_align > 0.6
+    #   gradients_dangerous: principal_align > 0.4
+    # Adjusted thresholds for Phase 1 validation:
+    SUBSPACE_STABLE_THRESHOLD = 0.15   # Was 0.1 - allow more rotation
+    MINOR_SAFE_THRESHOLD = 0.5         # Was 0.6 - easier to satisfy
+    PRINCIPAL_DANGER_THRESHOLD = 0.3   # Was 0.4 - trigger earlier
+
     # Rule 1: If subspace is stable AND gradients mostly in minor space
-    stable_subspace = angle < 0.1  # <5.7 degrees
-    gradients_safe = minor_align > 0.6
+    stable_subspace = angle < SUBSPACE_STABLE_THRESHOLD
+    gradients_safe = minor_align > MINOR_SAFE_THRESHOLD
 
     # Rule 2: If gradients are attacking principal components
-    gradients_dangerous = principal_align > 0.4
+    gradients_dangerous = principal_align > PRINCIPAL_DANGER_THRESHOLD
 
     # Rule 3: Reconstruction is safe
     reconstruction_ok = safe

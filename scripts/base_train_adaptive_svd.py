@@ -52,7 +52,7 @@ total_batch_size = 524288 # total desired batch size, in #tokens
 embedding_lr = 0.2 # learning rate for the embedding parameters (Adam)
 unembedding_lr = 0.004 # learning rate for the unembedding parameters (Adam)
 weight_decay = 0.0 # weight decay for the embedding/unembedding parameters (Adam)
-matrix_lr = 0.02 # learning rate for the matrix parameters (Muon)
+matrix_lr = 0.1 # learning rate for the matrix parameters (Muon) - INCREASED for threshold testing
 grad_clip = 1.0 # gradient clipping value (0.0 = disabled)
 warmup_ratio = 0.0 # ratio of iterations for LR warmup
 warmdown_ratio = 0.2 # ratio of iterations for LR warmdown
@@ -192,16 +192,24 @@ def get_muon_momentum(it):
 # -----------------------------------------------------------------------------
 # Adaptive SVD Analysis Function
 
-def analyze_svd_layers(model, step):
+def analyze_svd_layers(model, step, optimizers_tuple):
     """
     Analyze adaptive SVD layers and make mode-switching decisions.
 
-    Returns dict mapping layer_name -> decision_info with SVD metrics.
+    Args:
+        model: The model to analyze
+        step: Current training step
+        optimizers_tuple: Tuple of (adamw_optimizer, muon_optimizer)
+
+    Returns:
+        decisions: Dict mapping layer_name -> decision_info with SVD metrics
+        new_optimizers_tuple: Updated optimizers tuple (may be same or new)
     """
     from nanochat.adaptive_svd import should_use_lowrank_training
     from nanochat.gpt import AdaptiveSVDLinear
 
     decisions = {}
+    optimizers_need_update = False
 
     # Iterate through all transformer blocks
     for block_idx, block in enumerate(orig_model.transformer.h):
@@ -263,17 +271,28 @@ def analyze_svd_layers(model, step):
             grad_W, r_current, step
         )
 
+        # Log metrics to console (for visibility without WandB)
+        print0(f"  [{full_name}] Metrics:")
+        print0(f"    Mode: {layer.mode}")
+        print0(f"    principal_alignment: {diagnostics.get('principal_alignment', 'N/A'):.4f}")
+        print0(f"    minor_alignment: {diagnostics.get('minor_alignment', 'N/A'):.4f}")
+        print0(f"    subspace_angle: {diagnostics.get('subspace_angle', 'N/A'):.4f}")
+        print0(f"    reconstruction_error: {diagnostics.get('reconstruction_error', 'N/A'):.6f}")
+        print0(f"    Decision: {diagnostics.get('reason', 'N/A')}")
+
         # Execute decision
         if use_lowrank is True and layer.mode == "full":
             # Switch to low-rank
             layer.switch_to_lowrank(r_next)
             action = "switched_to_lowrank"
             print0(f"  [{full_name}] SWITCHED TO LOW-RANK (r={r_next}) - Reason: {diagnostics['reason']}")
+            optimizers_need_update = True
         elif use_lowrank is False and layer.mode == "lowrank":
             # Switch to full
             layer.switch_to_full()
             action = "switched_to_full"
             print0(f"  [{full_name}] SWITCHED TO FULL MATRIX - Reason: {diagnostics['reason']}")
+            optimizers_need_update = True
         else:
             # Continue current mode
             action = "continue_current"
@@ -293,7 +312,29 @@ def analyze_svd_layers(model, step):
             **diagnostics
         }
 
-    return decisions
+    # Re-register optimizers if any mode switch occurred
+    if optimizers_need_update:
+        print0(f"  Re-creating optimizers for new parameter configuration...")
+        adamw_optimizer, muon_optimizer = optimizers_tuple
+        new_optimizers = model.setup_optimizers(
+            unembedding_lr=unembedding_lr,
+            embedding_lr=embedding_lr,
+            matrix_lr=matrix_lr,
+            weight_decay=weight_decay
+        )
+        new_adamw_optimizer, new_muon_optimizer = new_optimizers
+        # Re-apply current learning rate schedule
+        lrm = get_lr_multiplier(step)
+        for opt in new_optimizers:
+            for group in opt.param_groups:
+                group["lr"] = group["initial_lr"] * lrm
+        muon_mom = get_muon_momentum(step)
+        for group in new_muon_optimizer.param_groups:
+            group["momentum"] = muon_mom
+        print0(f"  Optimizers re-created successfully")
+        return decisions, (new_adamw_optimizer, new_muon_optimizer)
+    else:
+        return decisions, optimizers_tuple
 
 # -----------------------------------------------------------------------------
 # Training loop
@@ -405,7 +446,10 @@ for step in range(num_iterations + 1):
     svd_decisions = {}
     if adaptive_svd and step > 0 and step % svd_interval == 0:
         print0(f"\n=== SVD Analysis at step {step} ===")
-        svd_decisions = analyze_svd_layers(orig_model, step)
+        svd_decisions, (adamw_optimizer, muon_optimizer) = analyze_svd_layers(
+            orig_model, step, (adamw_optimizer, muon_optimizer)
+        )
+        optimizers = (adamw_optimizer, muon_optimizer)
         print0(f"=== SVD Analysis complete ===\n")
 
     # step the optimizers
