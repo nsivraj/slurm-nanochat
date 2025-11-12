@@ -230,8 +230,18 @@ def analyze_svd_layers(model, step, optimizers_tuple):
         # Get gradient (handle case where gradient might not exist yet)
         if layer.W.grad is not None:
             grad_W = layer.W.grad
+            # Debug: verify gradient is valid
+            if torch.isnan(grad_W).any() or torch.isinf(grad_W).any():
+                print0(f"  [{full_name}] WARNING - gradient contains NaN or Inf values!")
+                decisions[full_name] = {
+                    'mode': layer.mode,
+                    'r': layer.r,
+                    'reason': 'invalid_gradient'
+                }
+                continue
         else:
             # No gradient yet (warmup period), skip analysis
+            print0(f"  [{full_name}] Skipping - no gradient available yet")
             decisions[full_name] = {
                 'mode': layer.mode,
                 'r': layer.r,
@@ -284,7 +294,7 @@ def analyze_svd_layers(model, step, optimizers_tuple):
         if use_lowrank is True and layer.mode == "full":
             # Switch to low-rank
             print0(f"  [{full_name}] BEFORE SWITCH - Parameters:")
-            print0(f"    W.shape: {layer.weight.shape}, requires_grad: {layer.weight.requires_grad}")
+            print0(f"    W.shape: {layer.W.shape}, requires_grad: {layer.W.requires_grad}")
             print0(f"    B exists: {hasattr(layer, 'B') and layer.B is not None}")
             print0(f"    A exists: {hasattr(layer, 'A') and layer.A is not None}")
 
@@ -293,14 +303,17 @@ def analyze_svd_layers(model, step, optimizers_tuple):
 
             print0(f"  [{full_name}] SWITCHED TO LOW-RANK (r={r_next}) - Reason: {diagnostics['reason']}")
             print0(f"  [{full_name}] AFTER SWITCH - Parameters:")
-            print0(f"    W.shape: {layer.weight.shape}, requires_grad: {layer.weight.requires_grad}")
+            print0(f"    W.shape: {layer.W.shape}, requires_grad: {layer.W.requires_grad}")
             print0(f"    B.shape: {layer.B.shape}, requires_grad: {layer.B.requires_grad}")
             print0(f"    A.shape: {layer.A.shape}, requires_grad: {layer.A.requires_grad}")
+            print0(f"  [{full_name}] MiLoRA initialization verified:")
+            print0(f"    B @ A reconstruction error: {torch.norm(layer.W_principal + layer.B @ layer.A - U_current @ torch.diag(S_current) @ V_current.T).item():.6f}")
+            print0(f"    B.grad is None: {layer.B.grad is None}, A.grad is None: {layer.A.grad is None}")
             optimizers_need_update = True
         elif use_lowrank is False and layer.mode == "lowrank":
             # Switch to full
             print0(f"  [{full_name}] BEFORE SWITCH - Parameters:")
-            print0(f"    W.shape: {layer.weight.shape}, requires_grad: {layer.weight.requires_grad}")
+            print0(f"    W.shape: {layer.W.shape}, requires_grad: {layer.W.requires_grad}")
             print0(f"    B.shape: {layer.B.shape}, requires_grad: {layer.B.requires_grad}")
             print0(f"    A.shape: {layer.A.shape}, requires_grad: {layer.A.requires_grad}")
 
@@ -309,7 +322,7 @@ def analyze_svd_layers(model, step, optimizers_tuple):
 
             print0(f"  [{full_name}] SWITCHED TO FULL MATRIX - Reason: {diagnostics['reason']}")
             print0(f"  [{full_name}] AFTER SWITCH - Parameters:")
-            print0(f"    W.shape: {layer.weight.shape}, requires_grad: {layer.weight.requires_grad}")
+            print0(f"    W.shape: {layer.W.shape}, requires_grad: {layer.W.requires_grad}")
             print0(f"    B exists: {hasattr(layer, 'B') and layer.B is not None}")
             print0(f"    A exists: {hasattr(layer, 'A') and layer.A is not None}")
             optimizers_need_update = True
@@ -334,12 +347,18 @@ def analyze_svd_layers(model, step, optimizers_tuple):
 
     # Re-register optimizers if any mode switch occurred
     if optimizers_need_update:
+        print0(f"\n  === Optimizer Re-registration ===")
         print0(f"  Re-creating optimizers for new parameter configuration...")
         adamw_optimizer, muon_optimizer = optimizers_tuple
 
         # Debug: show old optimizer state
         old_muon_param_count = sum(len(group['params']) for group in muon_optimizer.param_groups)
         print0(f"  [DEBUG] Old Muon optimizer had {old_muon_param_count} parameters")
+
+        # Debug: show current model parameter counts BEFORE re-creation
+        total_params_before = len(list(model.parameters()))
+        trainable_params_before = len([p for p in model.parameters() if p.requires_grad])
+        print0(f"  [DEBUG] Model params before setup_optimizers(): total={total_params_before}, trainable={trainable_params_before}")
 
         new_optimizers = model.setup_optimizers(
             unembedding_lr=unembedding_lr,
@@ -491,22 +510,25 @@ for step in range(num_iterations + 1):
     for group in muon_optimizer.param_groups:
         group["momentum"] = muon_momentum
 
-    # Debug logging right before optimizer step (only when mode switch happened recently)
-    if svd_decisions and any(d.get('action') in ['switched_to_lowrank', 'switched_to_full'] for d in svd_decisions.values()):
-        print0(f"[DEBUG] About to step optimizers at step {step}")
-        for i, opt in enumerate(optimizers):
-            opt_name = "AdamW" if i == 0 else "Muon"
-            param_count = sum(len(group['params']) for group in opt.param_groups)
-            print0(f"  {opt_name}: {param_count} parameters")
+    # Check if a mode switch just occurred
+    mode_switch_occurred = svd_decisions and any(
+        d.get('action') in ['switched_to_lowrank', 'switched_to_full']
+        for d in svd_decisions.values()
+    )
 
-    for opt in optimizers:
-        opt.step()
-
-    # Debug logging right after optimizer step (only when mode switch happened recently)
-    if svd_decisions and any(d.get('action') in ['switched_to_lowrank', 'switched_to_full'] for d in svd_decisions.values()):
-        print0(f"[DEBUG] Optimizer step completed successfully at step {step}")
-
-    model.zero_grad(set_to_none=True)
+    if mode_switch_occurred:
+        # Mode switch just happened - new parameters (B/A) initialized with MiLoRA but don't have gradients yet
+        # Skip optimizer step this iteration; B/A will get gradients in next forward/backward pass
+        print0(f"[DEBUG] Mode switch at step {step} - SKIPPING optimizer step")
+        print0(f"  Reason: New parameters (B/A) were created after backward pass")
+        print0(f"  MiLoRA initialization: B and A initialized from SVD such that B@A = W_m")
+        print0(f"  Next step: B and A will participate in forward/backward and get gradients")
+        model.zero_grad(set_to_none=True)
+    else:
+        # Normal case: step optimizers
+        for opt in optimizers:
+            opt.step()
+        model.zero_grad(set_to_none=True)
     synchronize()
     t1 = time.time()
     dt = t1 - t0

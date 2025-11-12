@@ -34,20 +34,24 @@ python -m scripts.base_train_adaptive_svd \
 ## What This Command Does
 
 ### Model Configuration
+
 - `--depth=4`: Small model with 4 transformer layers (~37M parameters)
 - `--max_seq_len=512`: Context length of 512 tokens
 - `--device_batch_size=1`: Batch size of 1 (minimal memory usage)
 
 ### Training Configuration
+
 - `--num_iterations=100`: Run for 100 training steps
 - `--total_batch_size=512`: Total batch size of 512 tokens
 - This results in gradient accumulation steps of 512/512 = 1 (no accumulation)
 
 ### Evaluation Configuration
+
 - `--eval_tokens=512`: Minimal evaluation (just for validation)
 - `--core_metric_every=-1`: Disable CORE metric (too slow for proof-of-concept)
 
 ### Device Configuration
+
 - `--device_type=cpu`: **IMPORTANT** - Use CPU instead of MPS/GPU
   - **Why CPU?** Apple MPS backend doesn't support all SVD operations
   - The error message: `NotImplementedError: The operator 'aten::_linalg_svd.U' is not currently implemented for the MPS device`
@@ -55,6 +59,7 @@ python -m scripts.base_train_adaptive_svd \
   - For Phase 2/3, we'll run on CUDA (Ptolemy cluster)
 
 ### Adaptive SVD Configuration (Hard-coded in script)
+
 - `adaptive_svd = True`: Enable adaptive SVD
 - `adaptive_svd_target_layer = 0`: Only apply to layer 0
 - `svd_interval = 20`: Run SVD analysis every 20 steps
@@ -64,6 +69,7 @@ python -m scripts.base_train_adaptive_svd \
 ## Expected Output
 
 ### 1. Initialization
+
 ```
 nanochat banner (ASCII art)
 Autodetected device type: cpu
@@ -75,6 +81,7 @@ Number of parameters: 36,700,160
 ```
 
 ### 2. Training Progress
+
 ```
 step 00001/00100 (1.00%) | loss: 11.003613 | lrm: 1.00 | dt: 42.27ms | ...
 step 00002/00100 (2.00%) | loss: 10.800964 | lrm: 1.00 | dt: 15.34ms | ...
@@ -82,6 +89,7 @@ step 00002/00100 (2.00%) | loss: 10.800964 | lrm: 1.00 | dt: 15.34ms | ...
 ```
 
 ### 3. SVD Analysis (every 20 steps)
+
 ```
 === SVD Analysis at step 20 ===
   [block0.attn.c_q] Initial SVD computed
@@ -91,10 +99,12 @@ step 00002/00100 (2.00%) | loss: 10.800964 | lrm: 1.00 | dt: 15.34ms | ...
 **First time (step 20)**: Computes initial SVD for comparison baseline
 
 **Subsequent times (steps 40, 60, 80, 100)**: Analyzes gradients and makes decisions:
+
 - Example: `[block0.attn.c_q] SWITCHED TO LOW-RANK (r=246) - Reason: gradient_clobbering_risk`
 - Or: `[block0.attn.c_q] Updated r: 246 -> 230`
 
 ### 4. Final Statistics
+
 ```
 Peak memory usage: XXX MiB
 Total training time: X.XX m
@@ -121,6 +131,7 @@ After the run completes, verify:
 ## Monitoring the Run
 
 ### Option 1: Watch in Real-Time
+
 ```bash
 # Run with output visible
 python -m scripts.base_train_adaptive_svd \
@@ -135,6 +146,7 @@ python -m scripts.base_train_adaptive_svd \
 ```
 
 ### Option 2: Run in Background with Logging
+
 ```bash
 # Run in background and log to file
 python -m scripts.base_train_adaptive_svd \
@@ -162,6 +174,7 @@ grep "SWITCHED" phase1_training.log
 ```
 
 ### Option 3: Use tmux/screen
+
 ```bash
 # Start tmux session
 tmux new -s phase1
@@ -186,6 +199,7 @@ python -m scripts.base_train_adaptive_svd \
 ## Troubleshooting
 
 ### Issue: MPS Device Error
+
 ```
 NotImplementedError: The operator 'aten::_linalg_svd.U' is not currently implemented for the MPS device
 ```
@@ -193,11 +207,13 @@ NotImplementedError: The operator 'aten::_linalg_svd.U' is not currently impleme
 **Solution**: Add `--device_type=cpu` to force CPU usage
 
 ### Issue: Out of Memory
+
 ```
 RuntimeError: [enforce fail at ...] DefaultCPUAllocator
 ```
 
 **Solution**: Reduce batch size or sequence length:
+
 ```bash
 python -m scripts.base_train_adaptive_svd \
   --depth=4 \
@@ -208,6 +224,7 @@ python -m scripts.base_train_adaptive_svd \
 ```
 
 ### Issue: Import Error
+
 ```
 ModuleNotFoundError: No module named 'nanochat.adaptive_svd'
 ```
@@ -215,11 +232,14 @@ ModuleNotFoundError: No module named 'nanochat.adaptive_svd'
 **Solution**: Make sure you're in the project root directory and virtual environment is activated
 
 ### Issue: Slow Training
+
 **Expected**: CPU training is ~10-20x slower than GPU. This is normal for Phase 1.
+
 - Step time on CPU: ~40-50ms per step
 - Total time for 100 steps: ~5-10 minutes
 
 **If you need faster**:
+
 - Wait for Phase 2/3 to run on CUDA (Ptolemy)
 - Or accept the slow speed for validation purposes
 
@@ -228,6 +248,7 @@ ModuleNotFoundError: No module named 'nanochat.adaptive_svd'
 ## What to Look For
 
 ### Good Signs ✅
+
 1. **SVD analysis completes without errors**
 2. **Metrics are logged**: principal_alignment, minor_alignment, subspace_angle
 3. **At least one mode switch** (full→lowrank due to clobbering detection)
@@ -235,12 +256,15 @@ ModuleNotFoundError: No module named 'nanochat.adaptive_svd'
 5. **No crashes or exceptions**
 
 ### Warning Signs ⚠️
+
 1. **No mode switches at all** - May indicate:
+
    - Thresholds too conservative
    - Need more training steps
    - Or genuinely no clobbering (which is fine for validation)
 
 2. **Constant mode switching** (every cycle) - May indicate:
+
    - Thresholds too aggressive
    - Need to adjust decision logic
    - Oscillating behavior (not ideal but not fatal)
@@ -255,6 +279,7 @@ ModuleNotFoundError: No module named 'nanochat.adaptive_svd'
 ## After Successful Completion
 
 ### 1. Check the Output Checkpoint
+
 ```bash
 ls -lh base_checkpoints/d4/
 
@@ -264,6 +289,7 @@ ls -lh base_checkpoints/d4/
 ```
 
 ### 2. Extract Key Metrics from Log
+
 ```bash
 # Get all SVD analysis summaries
 grep -A 10 "SVD Analysis at step" phase1_training.log
@@ -276,6 +302,7 @@ tail -20 phase1_training.log
 ```
 
 ### 3. Test Model Generation (Optional)
+
 ```python
 # In Python REPL
 from nanochat.gpt import GPT, GPTConfig
@@ -303,7 +330,9 @@ print(tokenizer.decode(sample[0]))
 ```
 
 ### 4. Document Results
+
 Create a summary in `experiments/PHASE1_RESULTS.md`:
+
 - Did training complete successfully? ✅/❌
 - Number of mode switches observed:
 - Example metrics from step 60/80:
@@ -321,12 +350,14 @@ Create a summary in `experiments/PHASE1_RESULTS.md`:
 Once Phase 1 succeeds:
 
 ### Phase 2 Preparation
+
 1. Update `adaptive_svd_target_layer` to `-1` (all layers)
 2. Update target layers to include all attention matrices
 3. Run full training (~2000-3000 steps)
 4. Compare with baseline
 
 ### Phase 3 Preparation
+
 1. Scale to depth=20 (production model)
 2. Deploy on Ptolemy cluster (8xA100 GPUs)
 3. Full base training run (21,400 steps, 7-8 hours)
@@ -341,6 +372,7 @@ Once Phase 1 succeeds:
 **Model Definition**: `nanochat/gpt.py` (AdaptiveSVDLinear class)
 **Tests**: `tests/test_adaptive_svd.py`
 **Documentation**:
+
 - Main experiment doc: `experiments/BASE_TRAIN_SVD_ENHANCEMENT.md`
 - Status tracking: `experiments/BASE_TRAIN_SVD_ENHANCEMENT_STATUS.md`
 - Architecture guide: `experiments/SVD_ENHANCEMENT_ARCHITECTURE_MODIFICATIONS.md`
@@ -351,6 +383,7 @@ Once Phase 1 succeeds:
 ## Contact/Support
 
 If you encounter issues:
+
 1. Check the error message carefully
 2. Review the troubleshooting section above
 3. Check `experiments/BASE_TRAIN_SVD_ENHANCEMENT_STATUS.md` for known issues
@@ -374,6 +407,7 @@ Two new shell scripts have been created for easier execution and monitoring:
 **Issue**: The monitoring script requires WandB online mode with authentication (`wandb login`).
 
 **Current approach**: For local CPU training, we run without WandB (dummy mode):
+
 - All SVD metrics are logged to the console/file
 - No WandB dashboard needed
 - Simpler execution without authentication dependencies
@@ -398,6 +432,7 @@ bash scripts/svd_adaptive_local_cpu_train.sh --num_iterations=3000
 ```
 
 **The script will:**
+
 - Check your environment
 - Display configuration
 - Show estimated runtime (~80 minutes for 2000 steps)
@@ -405,6 +440,7 @@ bash scripts/svd_adaptive_local_cpu_train.sh --num_iterations=3000
 - Log all output to screen AND file
 
 **All SVD metrics logged in real-time:**
+
 - SVD analysis every 20 steps
 - Mode switches when they occur
 - Metrics: principal_alignment, minor_alignment, subspace_angle, reconstruction_error
@@ -426,7 +462,7 @@ cd /Users/norman.jarvis/forge/work/code/coderockit/msu-phd/slurm-nanochat
 # Enable WandB with custom run name
 bash scripts/svd_adaptive_local_cpu_train.sh \
   --num_iterations=2000 \
-  --wandb_run=phase1-extended 2>&1 | tee svd_training_run.log
+  --wandb_run=phase1-extended 2>&1 | tee logs/svd_training_run.log
 ```
 
 ### Terminal 2: Monitor Metrics
@@ -437,7 +473,7 @@ After training starts and you have the WandB run ID:
 cd /Users/norman.jarvis/forge/work/code/coderockit/msu-phd/slurm-nanochat
 
 # Replace abc123def456 with your actual run ID
-bash scripts/svd_monitor.sh --wandb_run=abc123def456 2>&1 | tee svd_monitoring_run.log
+bash scripts/svd_monitor.sh --wandb_run=abc123def456 2>&1 | tee logs/svd_monitoring_run.log
 ```
 
 **Note**: This requires `wandb login` to be completed first.
@@ -668,13 +704,13 @@ wandb: ⭐️ View run at https://wandb.ai/yourname/nanochat/runs/abc123def456
 
 ## Expected Timeline (depth=4, 2000 steps)
 
-| Step Range | Duration | What's Happening | Alerts |
-|------------|----------|------------------|--------|
-| 0-200 | ~8 min | Initial learning, unstable subspace | None |
-| 200-400 | ~8 min | Patterns forming, metrics improving | INFO |
-| 400-600 | ~8 min | Subspace stabilizing | WARNING |
-| 600-800 | ~8 min | **FIRST SWITCH EXPECTED** | CRITICAL |
-| 800-2000 | ~48 min | Low-rank mode, r decreasing | INFO |
+| Step Range | Duration | What's Happening                    | Alerts   |
+| ---------- | -------- | ----------------------------------- | -------- |
+| 0-200      | ~8 min   | Initial learning, unstable subspace | None     |
+| 200-400    | ~8 min   | Patterns forming, metrics improving | INFO     |
+| 400-600    | ~8 min   | Subspace stabilizing                | WARNING  |
+| 600-800    | ~8 min   | **FIRST SWITCH EXPECTED**           | CRITICAL |
+| 800-2000   | ~48 min  | Low-rank mode, r decreasing         | INFO     |
 
 **Total**: ~80 minutes on modern CPU (MacBook Pro M1/M2)
 
@@ -697,21 +733,25 @@ bash scripts/svd_monitor.sh --help
 ## Quick Reference Card
 
 **Start training with defaults:**
+
 ```bash
 bash scripts/svd_adaptive_local_cpu_train.sh
 ```
 
 **Monitor (replace with your run ID):**
+
 ```bash
 bash scripts/svd_monitor.sh --wandb_run=<YOUR_RUN_ID>
 ```
 
 **Training with 3000 steps:**
+
 ```bash
 bash scripts/svd_adaptive_local_cpu_train.sh --num_iterations=3000
 ```
 
 **Monitoring with faster refresh:**
+
 ```bash
 bash scripts/svd_monitor.sh --wandb_run=<ID> --refresh_interval=5
 ```

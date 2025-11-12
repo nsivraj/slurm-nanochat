@@ -16,11 +16,13 @@ The monitoring script provides:
 ### ⚠️ Prerequisites
 
 **WandB Authentication Required**: This script requires WandB to be configured with authentication:
+
 ```bash
 wandb login
 ```
 
 **Alternative for local CPU training**: If WandB authentication is not available:
+
 - Run training with default settings (dummy mode, no `--wandb_run` parameter)
 - All SVD metrics are still logged to the training output
 - Analyze results from log files after training completes
@@ -107,7 +109,7 @@ python scripts/monitor_svd_metrics.py \
   --log-file training.log
 ```
 
-*Note*: Log file parsing is currently a stub. You'll need to adapt the parser to your log format.
+_Note_: Log file parsing is currently a stub. You'll need to adapt the parser to your log format.
 
 ---
 
@@ -118,9 +120,11 @@ python scripts/monitor_svd_metrics.py \
 The monitor checks against the same thresholds used in the training code:
 
 **Immediate Clobbering Trigger:**
+
 - `principal_alignment > 0.4` → Switch to low-rank NOW
 
 **Optimal Conditions Trigger (all must be true):**
+
 - `subspace_angle < 0.1` (stable subspace)
 - `minor_alignment > 0.6` (safe gradients)
 - `reconstruction_error < 0.01` (safe compression)
@@ -176,7 +180,7 @@ python -m scripts.base_train_adaptive_svd \
   --total_batch_size=512 \
   --num_iterations=2000 \
   --device_type=cuda \
-  2>&1 | tee training.log
+  2>&1 | tee logs/training.log
 ```
 
 **Terminal 2 - Monitor in real-time:**
@@ -285,6 +289,7 @@ python scripts/monitor_svd_metrics.py \
 ```
 
 You'll see alerts for:
+
 - `block0.attn.c_q`
 - `block0.attn.c_k`
 - `block0.attn.c_v`
@@ -343,13 +348,13 @@ The log file parser is currently a stub. To implement:
 
 Based on projections, here's when you should expect alerts:
 
-| Step Range | Expected Activity |
-|------------|------------------|
-| 0-200 | Quiet (no alerts) |
-| 200-400 | INFO alerts (trends detected) |
-| 400-600 | WARNING alerts (approaching thresholds) |
-| 600-800 | CRITICAL alerts (switch imminent/occurring) |
-| 800+ | Mode switches completed, monitoring continues |
+| Step Range | Expected Activity                             |
+| ---------- | --------------------------------------------- |
+| 0-200      | Quiet (no alerts)                             |
+| 200-400    | INFO alerts (trends detected)                 |
+| 400-600    | WARNING alerts (approaching thresholds)       |
+| 600-800    | CRITICAL alerts (switch imminent/occurring)   |
+| 800+       | Mode switches completed, monitoring continues |
 
 ---
 

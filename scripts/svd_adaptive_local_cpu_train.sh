@@ -38,7 +38,7 @@ DEVICE_TYPE=cpu                  # Use CPU (MPS doesn't support SVD operations)
 WANDB_RUN=""                     # Empty = auto-generate, or specify custom run ID
 
 # Output configuration
-LOG_FILE="svd_training_$(date +%Y%m%d_%H%M%S).log"
+LOG_FILE="logs/svd_training_$(date +%Y%m%d_%H%M%S).log"
 
 # ============================================================================
 # Parse Command Line Arguments
@@ -101,7 +101,7 @@ for arg in "$@"; do
             shift
             ;;
         --log_file=*)
-            LOG_FILE="${arg#*=}"
+            LOG_FILE="logs/${arg#*=}"
             shift
             ;;
         --help|-h)
@@ -120,7 +120,7 @@ for arg in "$@"; do
             echo "  --svd_interval=N           SVD analysis interval (default: 20)"
             echo "  --device_type=TYPE         Device type: cpu/cuda/mps (default: cpu)"
             echo "  --wandb_run=ID             WandB run ID (default: auto-generated)"
-            echo "  --log_file=PATH            Output log file (default: svd_training_TIMESTAMP.log)"
+            echo "  --log_file=PATH            Output log file (default: logs/svd_training_TIMESTAMP.log)"
             echo ""
             echo "Examples:"
             echo "  # Use all defaults (2000 steps)"

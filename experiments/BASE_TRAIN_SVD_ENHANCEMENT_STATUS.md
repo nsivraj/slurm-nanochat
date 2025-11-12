@@ -770,7 +770,7 @@ python -m scripts.base_train_adaptive_svd \
 **Run configuration**:
 ```bash
 bash scripts/svd_adaptive_local_cpu_train.sh \
-  --num_iterations=2000 2>&1 | tee svd_training_run.log
+  --num_iterations=2000 2>&1 | tee logs/svd_training_run.log
 ```
 
 **Parameters**:
