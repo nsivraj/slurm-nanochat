@@ -843,8 +843,209 @@ bash scripts/svd_adaptive_local_cpu_train.sh \
 
 ---
 
-**Status**: Extended Phase 1 run IN PROGRESS (started Nov 9, 12:00)
-**Confidence**: High - Shell scripts working, training started successfully
-**Blockers**: None (WandB issue resolved by using dummy mode)
-**Next Action**: Wait for training completion (~80 minutes), then analyze results
-**Last Updated**: November 9, 2025 (Session 4 - In Progress)
+## Session 5: Extended Phase 1 Debugging & Successful Completion
+
+**Date**: November 12, 2025
+
+### What We Accomplished
+
+#### 1. ✅ Identified and Fixed Critical Bugs
+
+**Bug #1: Optimizer Re-registration Scope Issue**
+- **Problem**: Mode switch created local optimizer variables, main loop used old optimizers
+- **Impact**: New parameters (B/A) not in optimizer's parameter groups → crash
+- **Fix**: Modified `analyze_svd_layers()` to return new optimizers, update outer scope
+  - Lines 195, 315-337, 449-452 in `scripts/base_train_adaptive_svd.py`
+
+**Bug #2: Parameter Filtering Missing**
+- **Problem**: `setup_optimizers()` collected ALL parameters including frozen W
+- **Impact**: Muon optimizer tried to step on frozen parameters → `AssertionError: g is not None`
+- **Fix**: Added `if p.requires_grad` filter to exclude frozen parameters
+  - Lines 376-378 in `nanochat/gpt.py`
+
+**Bug #3: Trainable Params Assertion**
+- **Problem**: Assertion compared all params (left) vs trainable params (right)
+- **Impact**: Failed when W was frozen (counts mismatch)
+- **Fix**: Compare trainable params on both sides
+  - Lines 379-381 in `nanochat/gpt.py`
+
+**Bug #4: AttributeError (layer.weight → layer.W)**
+- **Problem**: Debug logging used `layer.weight` but AdaptiveSVDLinear uses `layer.W`
+- **Impact**: AttributeError crash at mode switch
+- **Fix**: Changed all debug logging to use `layer.W`
+  - Lines 287-314 in `scripts/base_train_adaptive_svd.py`
+
+**Bug #5: Gradient Timing Issue** ⭐ **CRITICAL**
+- **Problem**: Mode switch creates B/A AFTER backward pass → B/A have no gradients yet
+- **Impact**: Optimizer step crashes: `AssertionError: g is not None`
+- **Sequence**:
+  1. Forward/Backward → gradients computed for W
+  2. SVD analysis detects danger → switch to low-rank
+  3. B and A created (MiLoRA initialization ✓)
+  4. Optimizer tries to step B and A → grad=None → crash!
+- **Fix**: Skip optimizer step on iterations where mode switch occurs
+  - Lines 513-531 in `scripts/base_train_adaptive_svd.py`
+  - B and A get gradients in next forward/backward pass
+
+#### 2. ✅ Added Comprehensive Debug Logging
+
+**Parameter Counts** (nanochat/gpt.py:383-392):
+```python
+[DEBUG] setup_optimizers() - Parameter counts:
+  Total parameters (all):      28
+  Trainable parameters:        27
+  Frozen parameters:           1
+  Matrix params (trainable):   25
+```
+
+**Mode Switch Details** (base_train_adaptive_svd.py:286-312):
+```python
+[block0.attn.c_q] BEFORE SWITCH - Parameters:
+  W.shape: torch.Size([256, 256]), requires_grad: True
+[block0.attn.c_q] SWITCHED TO LOW-RANK (r=196)
+[block0.attn.c_q] AFTER SWITCH - Parameters:
+  W.shape: torch.Size([256, 256]), requires_grad: False
+  B.shape: torch.Size([256, 196]), requires_grad: True
+  A.shape: torch.Size([256, 196]), requires_grad: True
+[block0.attn.c_q] MiLoRA initialization verified:
+  B @ A reconstruction error: 0.000033  ← Perfect!
+```
+
+**Optimizer Re-registration** (base_train_adaptive_svd.py:347-364):
+```python
+=== Optimizer Re-registration ===
+[DEBUG] Old Muon optimizer had 24 parameters
+[DEBUG] Model params before setup_optimizers(): total=28, trainable=27
+[DEBUG] New Muon optimizer has 25 parameters
+Optimizers re-created successfully (LR multiplier: 1.0000, momentum: 0.9433)
+```
+
+#### 3. ✅ Successful 2000-Step Training Run
+
+**Run Details**:
+- **Duration**: 82.41 minutes (~2.47 sec/step)
+- **Steps**: 2000 (100 SVD analyses at 20-step intervals)
+- **Device**: CPU (Apple Silicon M1)
+- **Mode switch**: Step 280 (14% through training)
+- **Final validation**: 1.93 bpb (44% improvement from 3.43 bpb)
+- **Exit code**: 0 ✅
+
+**Mode Switch Event (Step 280)**:
+- **Trigger**: `principal_alignment: 0.3069` (exceeded 0.3 threshold)
+- **Reason**: `gradient_clobbering_risk`
+- **Parameters**: W frozen (256×256), B (256×196), A (196×256) created
+- **MiLoRA init**: `B @ A reconstruction error: 0.000033` ← Perfect SVD initialization
+- **Timing**:
+  - Step 280: 135ms (optimizer step skipped ✓)
+  - Step 281: 5787ms (first forward/backward with B and A)
+  - Step 282+: ~2500ms (normal low-rank training)
+
+**Validation Performance**:
+| Step | bpb    | Improvement |
+|------|--------|-------------|
+| 0    | 3.4348 | baseline    |
+| 200  | 2.1754 | -37%        |
+| 280  | **SWITCH** | -       |
+| 400  | 2.1696 | -37%        |
+| 1000 | 2.0874 | -39%        |
+| 2000 | 1.9342 | **-44%**    |
+
+**Key Validation**: Training continued improving after mode switch - no catastrophic forgetting!
+
+#### 4. ⚠️ Issue Identified: Post-Switch SVD Analysis
+
+**Problem**: After switching to low-rank mode, SVD analysis stops working
+- SVD analysis checks `layer.W.grad` to get gradients
+- In low-rank mode, W is frozen → `layer.W.grad = None`
+- Analysis skipped: "Skipping - no gradient available yet"
+- Occurred in **85 analysis intervals** after step 280
+
+**Impact**:
+- ✅ Training continues correctly (no functional issue)
+- ❌ Monitoring disabled after switch
+- ❌ Can't detect if should switch back to full matrix
+- ❌ Can't adapt r based on low-rank training dynamics
+
+**Fix Needed for Phase 2**:
+```python
+# In low-rank mode, check B and A gradients instead of W.grad
+if layer.mode == "lowrank":
+    if layer.B.grad is None or layer.A.grad is None:
+        continue  # Skip if gradients not ready
+    # Reconstruct effective gradient from B and A
+    # grad_W_effective = B.grad @ A + B @ A.grad
+    # Continue with SVD analysis using grad_W_effective
+else:
+    # Full mode: use W.grad as before
+    grad_W = layer.W.grad
+```
+
+---
+
+### Current Status After Session 5
+
+**Phase 1 Extended Validation**: ✅ **COMPLETE AND SUCCESSFUL**
+
+**All Critical Objectives Achieved**:
+1. ✅ Adaptive SVD mode switching works correctly
+2. ✅ MiLoRA initialization verified (SVD-based, not random)
+3. ✅ Optimizer re-registration handles parameter changes
+4. ✅ Training continues seamlessly after mode switch
+5. ✅ No gradient timing issues (skip logic works)
+6. ✅ No crashes or assertion errors
+7. ✅ Model performance improves throughout training
+8. ✅ Mode switch detected clobbering risk correctly
+
+**Files Modified This Session**:
+- `scripts/base_train_adaptive_svd.py` (multiple bug fixes + debug logging)
+- `nanochat/gpt.py` (parameter filtering + assertion fix)
+- Log files: `logs/svd_training_param_filter_fix-4.log`, `logs/svd_training_20251112_140754.log`
+
+---
+
+### Remaining Work Before Phase 2
+
+**Required Fixes**:
+1. **SVD Analysis in Low-Rank Mode** (CRITICAL)
+   - Check B and A gradients instead of W.grad
+   - Reconstruct effective gradient for analysis
+   - Enable continuous monitoring throughout training
+   - Allow switching back to full matrix if needed
+
+**Optional Enhancements**:
+2. **Production Readiness**
+   - Test with different learning rates (currently 5x higher than normal)
+   - Validate on regular training configuration (not just validation setup)
+   - Test with multiple attention layers (c_q, c_k, c_v, c_proj)
+   - Add checkpoint saving/loading for mode state
+
+3. **Threshold Tuning**
+   - Current thresholds adjusted for fast switching (danger: 0.3, safety: 0.5, stability: 0.15)
+   - May need to revert to conservative thresholds (0.4, 0.6, 0.1) for production
+   - Validate on longer runs
+
+---
+
+### Next Immediate Steps
+
+**Before Phase 2**:
+1. Fix SVD analysis for low-rank mode (1-2 hours)
+2. Test on "regular training run" configuration (2-3 hours)
+3. Validate with multiple layers (c_q, c_k, c_v) (2-3 hours)
+4. Document final Phase 1 results
+
+**Phase 2 Goals**:
+- All attention layers adaptive
+- Full training run (2000-3000 steps)
+- Production-ready configuration
+- Comprehensive analysis
+
+**Timeline**: 2-3 more sessions before ready for Phase 2 full deployment
+
+---
+
+**Status**: Extended Phase 1 run COMPLETE ✅ - Mode switching validated!
+**Confidence**: Very High - All bugs fixed, training completed successfully
+**Blockers**: Need to fix SVD analysis for low-rank mode before Phase 2
+**Next Action**: Address remaining issues for production use
+**Last Updated**: November 12, 2025 (Session 5 - Complete)
