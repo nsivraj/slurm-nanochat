@@ -23,6 +23,145 @@ from nanochat.common import get_dist_info, print0
 from nanochat.muon import Muon, DistMuon
 from nanochat.adamw import DistAdamW
 
+
+class AdaptiveSVDLinear(nn.Module):
+    """
+    A Linear layer that can switch between full-matrix and low-rank training.
+
+    This layer supports dynamic switching between two training modes:
+    1. Full Matrix Mode: Train all weights W directly (standard approach)
+    2. Low-Rank Mode: Train only low-rank decomposition Bₘ @ Aₘ while freezing Wₚ
+
+    The mode switching is determined by SVD analysis to prevent catastrophic
+    forgetting (clobbering) of learned patterns.
+
+    Attributes:
+        W: Full weight matrix (out_features, in_features) - always present
+        B: Low-rank left factor (out_features, r) - created when switching to low-rank
+        A: Low-rank right factor (r, in_features) - created when switching to low-rank
+        W_principal: Frozen principal components (out_features, in_features)
+        bias: Optional bias (same as nn.Linear)
+
+        mode: "full" or "lowrank" - current training mode
+        r: Current rank for low-rank decomposition
+
+        U_prev, S_prev, V_prev: Previous SVD for comparison between steps
+    """
+
+    def __init__(self, in_features, out_features, bias=True):
+        super().__init__()
+
+        # Primary weight matrix (always present)
+        self.W = nn.Parameter(torch.empty(out_features, in_features))
+
+        # Low-rank factors (initialized as None, created on first switch)
+        self.register_buffer('B', None)  # Will be (out_features, r)
+        self.register_buffer('A', None)  # Will be (r, in_features)
+        self.register_buffer('W_principal', None)  # Frozen Wₚ
+
+        # Bias (standard)
+        if bias:
+            self.bias = nn.Parameter(torch.empty(out_features))
+        else:
+            self.register_parameter('bias', None)
+
+        # Training mode state
+        self.mode = "full"  # Start in full-matrix mode
+        self.r = None  # Current rank (set when switching to low-rank)
+
+        # SVD tracking (for comparison between steps)
+        self.register_buffer('U_prev', None)
+        self.register_buffer('S_prev', None)
+        self.register_buffer('V_prev', None)
+
+    def forward(self, x):
+        """Forward pass - use W or (Wₚ + B @ A) depending on mode."""
+        if self.mode == "full":
+            # Standard linear layer
+            return F.linear(x, self.W, self.bias)
+        else:
+            # Low-rank mode: W_effective = W_principal + B @ A
+            W_effective = self.W_principal + self.B @ self.A
+            return F.linear(x, W_effective, self.bias)
+
+    def switch_to_lowrank(self, r):
+        """Switch from full-matrix to low-rank training."""
+        # 1. Compute SVD of current W
+        U, S, Vh = torch.linalg.svd(self.W.data, full_matrices=False)
+        V = Vh.T
+
+        g = len(S)
+        k = g - r  # Number of principal components
+
+        # 2. Decompose: W = Wₚ + Wₘ
+        # Wₚ = top-k components (frozen)
+        U_p = U[:, :k]
+        S_p = S[:k]
+        V_p = V[:, :k]
+        W_principal = U_p @ torch.diag(S_p) @ V_p.T
+        self.register_buffer('W_principal', W_principal)
+
+        # Wₘ = bottom-r components (trainable as B @ A)
+        U_m = U[:, k:]
+        S_m = S[k:]
+        V_m = V[:, k:]
+
+        # 3. Initialize B and A using MiLoRA approach
+        # B = Uₘ √Σₘ,  A = √Σₘ Vₘᵀ
+        sqrt_S_m = torch.sqrt(torch.diag(S_m))
+        B = U_m @ sqrt_S_m
+        A = sqrt_S_m @ V_m.T
+
+        # Register as parameters
+        self.B = nn.Parameter(B)
+        self.A = nn.Parameter(A)
+
+        # 4. Freeze W, make B and A trainable
+        self.W.requires_grad = False
+        self.B.requires_grad = True
+        self.A.requires_grad = True
+
+        # 5. Update mode and rank
+        self.mode = "lowrank"
+        self.r = r
+
+        # 6. Store SVD for next comparison
+        self.U_prev = U.clone()
+        self.S_prev = S.clone()
+        self.V_prev = V.clone()
+
+    def switch_to_full(self):
+        """Switch from low-rank to full-matrix training."""
+        # 1. Merge B @ A back into W
+        if self.mode == "lowrank" and self.B is not None and self.A is not None:
+            self.W.data = self.W_principal + self.B @ self.A
+
+        # 2. Make W trainable, freeze B and A
+        self.W.requires_grad = True
+        if self.B is not None:
+            self.B.requires_grad = False
+        if self.A is not None:
+            self.A.requires_grad = False
+
+        # 3. Update mode
+        self.mode = "full"
+
+    def update_svd_tracking(self):
+        """Update stored SVD for comparison at next cycle."""
+        with torch.no_grad():
+            if self.mode == "full":
+                W_current = self.W.data
+            else:
+                W_current = self.W_principal + self.B @ self.A
+
+            U, S, Vh = torch.linalg.svd(W_current, full_matrices=False)
+            V = Vh.T
+
+            self.U_prev = U.clone()
+            self.S_prev = S.clone()
+            self.V_prev = V.clone()
+
+
 @dataclass
 class GPTConfig:
     sequence_len: int = 1024
@@ -31,6 +170,8 @@ class GPTConfig:
     n_head: int = 6 # number of query heads
     n_kv_head: int = 6 # number of key/value heads (MQA)
     n_embd: int = 768
+    adaptive_svd: bool = False  # Enable adaptive SVD training
+    adaptive_svd_target_layer: int = 0  # Which layer to apply adaptive SVD to (Phase 1: single layer)
 
 
 def norm(x):
@@ -58,7 +199,15 @@ class CausalSelfAttention(nn.Module):
         self.head_dim = self.n_embd // self.n_head
         assert self.n_embd % self.n_head == 0
         assert self.n_kv_head <= self.n_head and self.n_head % self.n_kv_head == 0
-        self.c_q = nn.Linear(self.n_embd, self.n_head * self.head_dim, bias=False)
+
+        # Phase 1: Only apply adaptive SVD to c_q in target layer
+        use_adaptive_for_c_q = config.adaptive_svd and layer_idx == config.adaptive_svd_target_layer
+
+        if use_adaptive_for_c_q:
+            self.c_q = AdaptiveSVDLinear(self.n_embd, self.n_head * self.head_dim, bias=False)
+        else:
+            self.c_q = nn.Linear(self.n_embd, self.n_head * self.head_dim, bias=False)
+
         self.c_k = nn.Linear(self.n_embd, self.n_kv_head * self.head_dim, bias=False)
         self.c_v = nn.Linear(self.n_embd, self.n_kv_head * self.head_dim, bias=False)
         self.c_proj = nn.Linear(self.n_embd, self.n_embd, bias=False)
@@ -171,7 +320,16 @@ class GPT(nn.Module):
             self.transformer.wte.to(dtype=torch.bfloat16)
 
     def _init_weights(self, module):
-        if isinstance(module, nn.Linear):
+        if isinstance(module, AdaptiveSVDLinear):
+            # Initialize W using same strategy as nn.Linear
+            # https://arxiv.org/pdf/2310.17813
+            fan_out = module.W.size(0)
+            fan_in = module.W.size(1)
+            std = 1.0 / math.sqrt(fan_in) * min(1.0, math.sqrt(fan_out / fan_in))
+            torch.nn.init.normal_(module.W, mean=0.0, std=std)
+            if module.bias is not None:
+                torch.nn.init.zeros_(module.bias)
+        elif isinstance(module, nn.Linear):
             # https://arxiv.org/pdf/2310.17813
             fan_out = module.weight.size(0)
             fan_in = module.weight.size(1)
@@ -214,10 +372,25 @@ class GPT(nn.Module):
         model_dim = self.config.n_embd
         ddp, rank, local_rank, world_size = get_dist_info()
         # Separate out all parameters into 3 groups (matrix, embedding, lm_head)
-        matrix_params = list(self.transformer.h.parameters())
-        embedding_params = list(self.transformer.wte.parameters())
-        lm_head_params = list(self.lm_head.parameters())
-        assert len(list(self.parameters())) == len(matrix_params) + len(embedding_params) + len(lm_head_params)
+        # IMPORTANT: Only include parameters that require gradients (filters out frozen W in low-rank mode)
+        matrix_params = [p for p in self.transformer.h.parameters() if p.requires_grad]
+        embedding_params = [p for p in self.transformer.wte.parameters() if p.requires_grad]
+        lm_head_params = [p for p in self.lm_head.parameters() if p.requires_grad]
+        # Assertion: verify all trainable params are accounted for
+        trainable_params = [p for p in self.parameters() if p.requires_grad]
+        assert len(trainable_params) == len(matrix_params) + len(embedding_params) + len(lm_head_params)
+
+        # Debug logging: parameter counts
+        if rank == 0:
+            total_params = len(list(self.parameters()))
+            print(f"[DEBUG] setup_optimizers() - Parameter counts:")
+            print(f"  Total parameters (all):      {total_params}")
+            print(f"  Trainable parameters:        {len(trainable_params)}")
+            print(f"  Frozen parameters:           {total_params - len(trainable_params)}")
+            print(f"  Matrix params (trainable):   {len(matrix_params)}")
+            print(f"  Embedding params (trainable): {len(embedding_params)}")
+            print(f"  LM head params (trainable):  {len(lm_head_params)}")
+
         # Create the AdamW optimizer for the embedding and lm_head
         # Scale the LR for the AdamW parameters by ∝1/√dmodel (having tuned the LRs for 768 dim model)
         dmodel_lr_scale = (model_dim / 768) ** -0.5
